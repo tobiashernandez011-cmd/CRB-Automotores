@@ -90,26 +90,11 @@ textarea {
 
 .editor-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
-.editor-actions .button-primary {
-  grid-column: 1 / -1;
-}
-
-.section-nav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  margin: 3px 0 18px;
-  padding: 4px;
-  border-radius: 7px;
-  background: #f0f3f5;
-}
-
-.section-nav button,
 .mobile-view-toggle button {
   min-height: 38px;
   border: 0;
@@ -119,12 +104,6 @@ textarea {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-}
-
-.section-nav button.is-active {
-  background: #fff;
-  color: var(--deep-blue);
-  box-shadow: 0 1px 4px #1b33411a;
 }
 
 .mobile-view-toggle {
@@ -158,6 +137,15 @@ textarea {
 
 .button-whatsapp {
   background: #218a54;
+}
+
+.button-email {
+  background: #7256a8;
+}
+
+.action-note {
+  margin-top: 0;
+  margin-bottom: 20px;
 }
 
 .pdf-feedback {
@@ -250,133 +238,6 @@ textarea {
   color: #777f87;
   font-size: 11px;
   line-height: 1.5;
-}
-
-.history-section {
-  display: grid;
-  gap: 14px;
-  margin-top: 20px;
-}
-
-.quote-list {
-  display: grid;
-  gap: 9px;
-}
-
-.quote-card {
-  width: 100%;
-  display: grid;
-  gap: 5px;
-  padding: 12px;
-  border: 1px solid #dfe5ea;
-  border-radius: 7px;
-  background: #fff;
-  color: #26313a;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .15s ease, background .15s ease;
-}
-
-.quote-card:hover,
-.quote-card:focus-visible {
-  border-color: var(--blue);
-  background: #f7fafc;
-}
-
-.quote-card strong {
-  font-size: 13px;
-}
-
-.quote-card span {
-  color: #66717b;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.history-empty {
-  margin: 4px 0;
-  color: #727d87;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #64707a;
-  font-size: 11px;
-}
-
-.pagination button,
-.history-back {
-  padding: 8px 10px;
-  border: 1px solid #d2d9df;
-  border-radius: 5px;
-  background: #fff;
-  color: #34404a;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.pagination button:disabled {
-  opacity: .5;
-  cursor: default;
-}
-
-.saved-detail {
-  margin-top: 22px;
-}
-
-.saved-detail-date {
-  margin: 0 0 5px;
-  color: #737d86;
-  font-size: 11px;
-}
-
-.saved-detail h2 {
-  margin: 0 0 16px;
-  font-size: 18px;
-}
-
-.saved-detail dl {
-  display: grid;
-  gap: 0;
-  margin: 0;
-}
-
-.saved-detail dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid #e6e9ed;
-  font-size: 12px;
-}
-
-.saved-detail dt {
-  color: #69747e;
-}
-
-.saved-detail dd {
-  margin: 0;
-  font-weight: 700;
-  text-align: right;
-}
-
-.detail-actions {
-  display: grid;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.detail-preview-actions {
-  display: none;
-  width: min(100%, 794px);
-  gap: 9px;
-  margin: 0 auto 12px;
 }
 
 .preview-area {
@@ -708,23 +569,16 @@ textarea {
     text-align: right;
   }
 
-  .detail-preview-actions {
-    display: flex;
-    flex-wrap: wrap;
-  }
-
-  .detail-preview-actions .button {
-    flex: 1 1 130px;
-  }
-
   .editor-actions {
-    gap: 8px;
+    gap: 6px;
   }
 
   .editor-actions .button {
     min-height: 46px;
-    padding: 9px 7px;
-    font-size: 11px;
+    min-width: 0;
+    padding: 7px 4px;
+    font-size: 10px;
+    line-height: 1.2;
   }
 
   .field input,

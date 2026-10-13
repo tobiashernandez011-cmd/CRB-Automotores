@@ -18,15 +18,7 @@ En Supabase, abrí **Authentication → Users → Add user → Create new user**
 
 En **Authentication → URL Configuration**, agregá `http://localhost:3000` como URL local. Al desplegar, configurá como Site URL la dirección de producción de Vercel y agregala también a Redirect URLs.
 
-## 4. Activar el historial de presupuestos
-
-1. En Supabase, abrí **SQL Editor → New query**.
-2. Copiá y ejecutá el contenido de [`supabase/schema.sql`](./supabase/schema.sql). Esto crea la tabla `public.quotes` y sus políticas RLS.
-3. Volvé a la aplicación e iniciá sesión. Guardá un presupuesto con **Guardar presupuesto**; aparecerá en **Historial**. Usá la búsqueda por cliente y elegí un resultado para ver la hoja completa y los datos.
-
-El personal autenticado puede consultar todos los presupuestos y crear registros bajo su propia cuenta. Los presupuestos guardados no tienen opciones para modificar o eliminar desde la aplicación.
-
-## 5. Configurar Vercel
+## 4. Configurar Vercel
 
 En el proyecto de Vercel, abrí **Settings → Environment Variables** y cargá:
 
@@ -35,10 +27,14 @@ En el proyecto de Vercel, abrí **Settings → Environment Variables** y cargá:
 
 Aplicá las variables a los entornos que uses y volvé a desplegar el proyecto. La clave pública puede estar en el cliente; nunca agregues `service_role` ni claves secretas con prefijo `NEXT_PUBLIC_`.
 
-## PDF y WhatsApp
+## PDF, WhatsApp y correo
 
 - **Descargar PDF** genera y descarga una hoja A4 con el formato del presupuesto.
 - **Abrir WhatsApp** abre el chat del número ingresado, sin texto prearmado. Descargá primero el PDF y adjuntalo manualmente desde ese chat.
 - El navegador no permite que esta página adjunte el archivo automáticamente a un chat `wa.me`.
+- **Abrir Gmail** abre un borrador web dirigido a la dirección cargada en el campo del cliente. Descargá primero el PDF y adjuntalo manualmente antes de enviarlo; la aplicación no manda el correo automáticamente.
+- Por seguridad, el navegador no permite que la aplicación adjunte el PDF automáticamente a Gmail.
+
+La aplicación no guarda presupuestos. Si se ejecutó anteriormente el SQL que creaba `public.quotes`, esa tabla queda sin uso; la aplicación ya no consulta ni escribe en ella.
 
 Para automatizar un envío desde la cuenta de WhatsApp Business sin usar el menú de compartir hace falta implementar la WhatsApp Business Platform (Cloud API), configurar credenciales seguras en servidor y cumplir sus reglas de consentimiento y plantillas. Una clave `wa.me` o una clave de Supabase no habilitan ese envío.

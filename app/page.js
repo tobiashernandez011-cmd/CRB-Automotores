@@ -9,6 +9,7 @@ const initialQuote = {
   plate: "",
   year: "",
   phone: "",
+  customerEmail: "",
   date: "",
   repair: "",
   replace: "",
@@ -21,8 +22,6 @@ const PDF_LAYOUT = {
   pageWidth: 794,
   logo: { x: 521, y: 40, width: 220, height: 112 },
 };
-
-const QUOTE_PAGE_SIZE = 25;
 
 function formatAmount(value) {
   const amount = Number(value);
@@ -67,21 +66,6 @@ function quoteFileName(quote) {
     .replace(/^-|-$/g, "");
   const plate = quote.plate.replace(/[^a-zA-Z0-9]+/g, "");
   return `Presupuesto-CRB${customer ? `-${customer}` : ""}${plate ? `-${plate}` : ""}.pdf`;
-}
-
-function quoteFromRecord(record) {
-  return {
-    customer: record.customer ?? "",
-    vehicle: record.vehicle ?? "",
-    plate: record.plate ?? "",
-    year: record.year ?? "",
-    phone: record.phone ?? "",
-    date: record.quote_date ?? "",
-    repair: record.repair ?? "",
-    replace: record.replace ?? "",
-    parts: String(record.parts ?? ""),
-    labor: String(record.labor ?? ""),
-  };
 }
 
 async function svgToPng(svgElement) {
@@ -202,22 +186,11 @@ export default function Home() {
   const [pdfError, setPdfError] = useState("");
   const [pdfMessage, setPdfMessage] = useState("");
   const [whatsAppError, setWhatsAppError] = useState("");
-  const [screen, setScreen] = useState("new");
+  const [emailError, setEmailError] = useState("");
   const [mobileShowPaper, setMobileShowPaper] = useState(false);
-  const [savedQuotes, setSavedQuotes] = useState([]);
-  const [selectedQuote, setSelectedQuote] = useState(null);
-  const [historySearch, setHistorySearch] = useState("");
-  const [historyPage, setHistoryPage] = useState(0);
-  const [historyCount, setHistoryCount] = useState(0);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
   const [previewScale, setPreviewScale] = useState(1);
   const [quote, setQuote] = useState(initialQuote);
   const paperRef = useRef(null);
-  const previewAreaRef = useRef(null);
 
   useEffect(() => {
     // Set the local date after hydration to avoid a server/client date mismatch.
@@ -261,57 +234,20 @@ export default function Home() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!session || screen !== "history" || !supabase) return undefined;
-
-    let active = true;
-    const loadQuotes = async () => {
-      setHistoryLoading(true);
-      setHistoryError("");
-      try {
-        let query = supabase
-          .from("quotes")
-          .select("id, customer, vehicle, plate, year, phone, quote_date, repair, replace, parts, labor, created_at, created_by", { count: "exact" })
-          .order("created_at", { ascending: false })
-          .range(historyPage * QUOTE_PAGE_SIZE, (historyPage + 1) * QUOTE_PAGE_SIZE - 1);
-        const search = historySearch.trim().replace(/[%_\\]/g, "\\$&");
-        if (search) query = query.ilike("customer", `%${search}%`);
-
-        const { data, error, count } = await query;
-        if (error) throw error;
-        if (active) {
-          setSavedQuotes(data ?? []);
-          setHistoryCount(count ?? 0);
-        }
-      } catch (error) {
-        if (active) {
-          setHistoryError(error instanceof Error ? error.message : "No se pudieron cargar los presupuestos.");
-          setSavedQuotes([]);
-          setHistoryCount(0);
-        }
-      } finally {
-        if (active) setHistoryLoading(false);
-      }
-    };
-
-    loadQuotes();
-    return () => {
-      active = false;
-    };
-  }, [historyPage, historySearch, screen, session, supabase]);
-
-  useEffect(() => {
-    const previewArea = previewAreaRef.current;
-    if (!previewArea) return undefined;
-
     const updateScale = () => {
-      const availableWidth = previewArea.clientWidth - 20;
-      setPreviewScale(Math.min(1, Math.max(0.25, availableWidth / PDF_LAYOUT.pageWidth)));
+      const availableWidth = document.documentElement.clientWidth;
+      if (availableWidth > 760) {
+        setPreviewScale(1);
+        return;
+      }
+      const horizontalPadding = 16;
+      const width = Math.max(280, availableWidth - horizontalPadding);
+      setPreviewScale(Math.min(1, width / PDF_LAYOUT.pageWidth));
     };
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(previewArea);
-    requestAnimationFrame(updateScale);
-    return () => observer.disconnect();
-  }, [authReady, screen]);
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, [authReady]);
 
   async function signIn(event) {
     event.preventDefault();
@@ -426,71 +362,6 @@ export default function Home() {
     }
   }
 
-  async function saveQuote() {
-    if (!supabase || !session) return;
-    if (!quote.customer.trim()) {
-      setSaveError("Ingresá el nombre del cliente antes de guardar el presupuesto.");
-      setSaveMessage("");
-      return;
-    }
-
-    setSaveLoading(true);
-    setSaveError("");
-    setSaveMessage("");
-    try {
-      const { data, error } = await supabase
-        .from("quotes")
-        .insert({
-          customer: quote.customer.trim(),
-          vehicle: quote.vehicle.trim(),
-          plate: quote.plate.trim(),
-          year: quote.year.trim(),
-          phone: quote.phone.trim(),
-          quote_date: quote.date || localDateInputValue(),
-          repair: quote.repair,
-          replace: quote.replace,
-          parts: Number(quote.parts || 0),
-          labor: Number(quote.labor || 0),
-          created_by: session.user.id,
-        })
-        .select("id, customer, vehicle, plate, year, phone, quote_date, repair, replace, parts, labor, created_at, created_by")
-        .single();
-      if (error) throw error;
-      setSelectedQuote(data);
-      setQuote(quoteFromRecord(data));
-      setSaveMessage("Presupuesto guardado. Ya está disponible en el historial.");
-      setScreen("detail");
-      setMobileShowPaper(false);
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "No se pudo guardar el presupuesto en Supabase.");
-    } finally {
-      setSaveLoading(false);
-    }
-  }
-
-  function startNewQuote() {
-    setQuote({ ...initialQuote, date: localDateInputValue() });
-    setSelectedQuote(null);
-    setSaveError("");
-    setSaveMessage("");
-    setPdfError("");
-    setPdfMessage("");
-    setWhatsAppError("");
-    setScreen("new");
-    setMobileShowPaper(false);
-  }
-
-  function openSavedQuote(record) {
-    setSelectedQuote(record);
-    setQuote(quoteFromRecord(record));
-    setSaveError("");
-    setSaveMessage("");
-    setScreen("detail");
-    setMobileShowPaper(false);
-    setPdfError("");
-    setPdfMessage("");
-  }
-
   function openWhatsApp() {
     const phone = quote.phone.replace(/\D/g, "");
     if (phone.length < 8 || phone.length > 15) {
@@ -499,6 +370,20 @@ export default function Home() {
     }
     setWhatsAppError("");
     window.open(`https://wa.me/${phone}`, "_blank", "noopener,noreferrer");
+  }
+
+  function openEmail() {
+    const recipient = quote.customerEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      setEmailError("Ingresá una dirección de correo válida para abrir el mensaje.");
+      return;
+    }
+    setEmailError("");
+    const composeUrl = new URL("https://mail.google.com/mail/");
+    composeUrl.searchParams.set("view", "cm");
+    composeUrl.searchParams.set("fs", "1");
+    composeUrl.searchParams.set("to", recipient);
+    window.open(composeUrl.toString(), "_blank", "noopener,noreferrer");
   }
 
   function update(field, value) {
@@ -552,7 +437,7 @@ export default function Home() {
           <CrbLogo className="mini-logo" />
           <div>
             <p className="eyebrow">CENTRO DE REPARACIONES BRAGADO</p>
-            <h1>{screen === "history" ? "Presupuestos guardados" : screen === "detail" ? "Detalle del presupuesto" : "Nuevo presupuesto"}</h1>
+            <h1>Nuevo presupuesto</h1>
           </div>
         </div>
 
@@ -561,120 +446,57 @@ export default function Home() {
           <button type="button" onClick={signOut}>Cerrar sesión</button>
         </div>
 
-        <nav className="section-nav" aria-label="Secciones de presupuestos">
-          <button className={screen === "new" ? "is-active" : ""} type="button" onClick={startNewQuote}>Nuevo presupuesto</button>
-          <button className={screen === "history" || screen === "detail" ? "is-active" : ""} type="button" onClick={() => { setScreen("history"); setHistoryPage(0); setMobileShowPaper(false); }}>Historial</button>
-        </nav>
+        <div className="editor-actions">
+          <button className="button button-primary" type="button" onClick={downloadQuotePdf} disabled={pdfLoading}>
+            {pdfLoading ? "Preparando PDF…" : "Descargar PDF"}
+          </button>
+          <button className="button button-whatsapp" type="button" onClick={openWhatsApp}>
+            Abrir WhatsApp
+          </button>
+          <button className="button button-email" type="button" onClick={openEmail}>
+            Abrir Gmail
+          </button>
+        </div>
+        <p className="editor-note action-note">Gmail abrirá un borrador dirigido al cliente. Descargá el PDF y adjuntalo antes de enviarlo.</p>
+        {pdfError && <p className="pdf-feedback pdf-error no-print" role="alert">{pdfError}</p>}
+        {pdfMessage && <p className="pdf-feedback no-print" role="status">{pdfMessage}</p>}
+        {whatsAppError && <p className="pdf-feedback pdf-error no-print" role="alert">{whatsAppError}</p>}
+        {emailError && <p className="pdf-feedback pdf-error no-print" role="alert">{emailError}</p>}
 
-        {screen === "new" ? (
-          <>
-            <div className="editor-actions">
-              <button className="button button-primary" type="button" onClick={saveQuote} disabled={saveLoading}>
-                {saveLoading ? "Guardando…" : "Guardar presupuesto"}
-              </button>
-              <button className="button button-download" type="button" onClick={downloadQuotePdf} disabled={pdfLoading}>
-                {pdfLoading ? "Preparando PDF…" : "Descargar PDF"}
-              </button>
-              <button className="button button-whatsapp" type="button" onClick={openWhatsApp}>
-                Abrir WhatsApp
-              </button>
-            </div>
-            {saveError && <p className="pdf-feedback pdf-error no-print" role="alert">{saveError}</p>}
-            {saveMessage && <p className="pdf-feedback no-print" role="status">{saveMessage}</p>}
-            {pdfError && <p className="pdf-feedback pdf-error no-print" role="alert">{pdfError}</p>}
-            {pdfMessage && <p className="pdf-feedback no-print" role="status">{pdfMessage}</p>}
-            {whatsAppError && <p className="pdf-feedback pdf-error no-print" role="alert">{whatsAppError}</p>}
+        <section className="form-section">
+          <h2>Datos del presupuesto</h2>
+          <Field label="Fecha" type="date" value={quote.date} onChange={(event) => update("date", event.target.value)} />
+          <Field label="Señor" value={quote.customer} onChange={(event) => update("customer", event.target.value)} placeholder="Nombre del cliente" />
+          <Field label="Vehículo" value={quote.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Marca y modelo" />
+          <div className="field-row">
+            <Field label="Dominio" value={quote.plate} onChange={(event) => update("plate", event.target.value)} placeholder="AB123CD" />
+            <Field label="Año" value={quote.year} onChange={(event) => update("year", event.target.value)} placeholder="2020" />
+          </div>
+          <Field label="WhatsApp del cliente" type="tel" value={quote.phone} onChange={(event) => { update("phone", event.target.value); setWhatsAppError(""); }} placeholder="5492342483605" />
+          <small className="phone-hint">Ingresá país, área y número para abrir su chat sin mensaje automático.</small>
+          <Field label="Correo electrónico del cliente" type="email" autoComplete="email" value={quote.customerEmail} onChange={(event) => { update("customerEmail", event.target.value); setEmailError(""); }} placeholder="cliente@correo.com" />
+        </section>
 
-            <section className="form-section">
-              <h2>Datos del presupuesto</h2>
-              <Field label="Fecha" type="date" value={quote.date} onChange={(event) => update("date", event.target.value)} />
-              <Field label="Señor" value={quote.customer} onChange={(event) => update("customer", event.target.value)} placeholder="Nombre del cliente" />
-              <Field label="Vehículo" value={quote.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Marca y modelo" />
-              <div className="field-row">
-                <Field label="Dominio" value={quote.plate} onChange={(event) => update("plate", event.target.value)} placeholder="AB123CD" />
-                <Field label="Año" value={quote.year} onChange={(event) => update("year", event.target.value)} placeholder="2020" />
-              </div>
-              <Field label="WhatsApp del cliente" type="tel" value={quote.phone} onChange={(event) => { update("phone", event.target.value); setWhatsAppError(""); }} placeholder="5492342483605" />
-              <small className="phone-hint">Ingresá país, área y número para abrir su chat sin mensaje automático.</small>
-            </section>
+        <section className="form-section">
+          <h2>Trabajos y repuestos</h2>
+          <ListField label="Reparar" value={quote.repair} onChange={(value) => update("repair", value)} placeholder={"Reparación de paragolpes\nPintura de guardabarros"} />
+          <ListField label="Reemplazar" value={quote.replace} onChange={(value) => update("replace", value)} placeholder={"Paragolpes delantero\nÓptica derecha"} />
+        </section>
 
-            <section className="form-section">
-              <h2>Trabajos y repuestos</h2>
-              <ListField label="Reparar" value={quote.repair} onChange={(value) => update("repair", value)} placeholder={"Reparación de paragolpes\nPintura de guardabarros"} />
-              <ListField label="Reemplazar" value={quote.replace} onChange={(value) => update("replace", value)} placeholder={"Paragolpes delantero\nÓptica derecha"} />
-            </section>
-
-            <section className="form-section">
-              <h2>Importes (ARS)</h2>
-              <Field label="Repuestos" type="number" min="0" step="0.01" value={quote.parts} onChange={(event) => update("parts", event.target.value)} placeholder="0,00" />
-              <Field label="Mano de obra chapa y pintura" type="number" min="0" step="0.01" value={quote.labor} onChange={(event) => update("labor", event.target.value)} placeholder="0,00" />
-              <div className="total-preview">FINAL <strong>{formatAmount(finalAmount)}</strong></div>
-            </section>
-            <p className="editor-note">La vista previa se actualiza al escribir. Guardá el presupuesto para consultarlo luego desde el historial.</p>
-          </>
-        ) : screen === "history" ? (
-          <section className="history-section">
-            <label className="field">
-              <span>Buscar por cliente</span>
-              <input type="search" value={historySearch} onChange={(event) => { setHistorySearch(event.target.value); setHistoryPage(0); }} placeholder="Nombre del cliente" />
-            </label>
-            {historyError && <p className="pdf-feedback pdf-error" role="alert">{historyError}</p>}
-            {historyLoading ? <p className="history-empty">Cargando presupuestos…</p> : savedQuotes.length ? (
-              <div className="quote-list">
-                {savedQuotes.map((record) => (
-                  <button className="quote-card" type="button" key={record.id} onClick={() => openSavedQuote(record)}>
-                    <strong>{record.customer}</strong>
-                    <span>{record.vehicle || "Vehículo sin especificar"}{record.plate ? ` · ${record.plate}` : ""}</span>
-                    <span>{formatDate(record.quote_date)} · Final {formatAmount(Number(record.parts || 0) + Number(record.labor || 0))}</span>
-                  </button>
-                ))}
-              </div>
-            ) : !historyError && <p className="history-empty">{historySearch ? "No hay presupuestos para esa búsqueda." : "Todavía no hay presupuestos guardados."}</p>}
-            {historyCount > QUOTE_PAGE_SIZE && (
-              <div className="pagination">
-                <button type="button" disabled={historyPage === 0 || historyLoading} onClick={() => setHistoryPage((page) => page - 1)}>Anterior</button>
-                <span>{historyPage + 1} / {Math.ceil(historyCount / QUOTE_PAGE_SIZE)}</span>
-                <button type="button" disabled={(historyPage + 1) * QUOTE_PAGE_SIZE >= historyCount || historyLoading} onClick={() => setHistoryPage((page) => page + 1)}>Siguiente</button>
-              </div>
-            )}
-          </section>
-        ) : (
-          <section className="saved-detail">
-            <p className="saved-detail-date">Presupuesto del {formatDate(selectedQuote?.quote_date)}</p>
-            <h2>{selectedQuote?.customer}</h2>
-            {saveMessage && <p className="pdf-feedback" role="status">{saveMessage}</p>}
-            <dl>
-              <div><dt>Vehículo</dt><dd>{selectedQuote?.vehicle || "—"}</dd></div>
-              <div><dt>Dominio</dt><dd>{selectedQuote?.plate || "—"}</dd></div>
-              <div><dt>Año</dt><dd>{selectedQuote?.year || "—"}</dd></div>
-              <div><dt>WhatsApp</dt><dd>{selectedQuote?.phone || "—"}</dd></div>
-              <div><dt>Repuestos</dt><dd>{formatAmount(selectedQuote?.parts)}</dd></div>
-              <div><dt>Mano de obra</dt><dd>{formatAmount(selectedQuote?.labor)}</dd></div>
-              <div><dt>Total final</dt><dd>{formatAmount(Number(selectedQuote?.parts || 0) + Number(selectedQuote?.labor || 0))}</dd></div>
-            </dl>
-            <div className="detail-actions">
-              <button className="button button-primary" type="button" onClick={downloadQuotePdf} disabled={pdfLoading}>{pdfLoading ? "Preparando PDF…" : "Descargar PDF"}</button>
-              <button className="button button-whatsapp" type="button" onClick={openWhatsApp}>Abrir WhatsApp</button>
-              <button className="history-back" type="button" onClick={() => { setScreen("history"); setMobileShowPaper(false); }}>Volver al historial</button>
-            </div>
-            {pdfError && <p className="pdf-feedback pdf-error" role="alert">{pdfError}</p>}
-            {whatsAppError && <p className="pdf-feedback pdf-error" role="alert">{whatsAppError}</p>}
-          </section>
-        )}
+        <section className="form-section">
+          <h2>Importes (ARS)</h2>
+          <Field label="Repuestos" type="number" min="0" step="0.01" value={quote.parts} onChange={(event) => update("parts", event.target.value)} placeholder="0,00" />
+          <Field label="Mano de obra chapa y pintura" type="number" min="0" step="0.01" value={quote.labor} onChange={(event) => update("labor", event.target.value)} placeholder="0,00" />
+          <div className="total-preview">FINAL <strong>{formatAmount(finalAmount)}</strong></div>
+        </section>
+        <p className="editor-note">En WhatsApp, adjuntá manualmente el PDF descargado.</p>
       </aside>
 
-      <section ref={previewAreaRef} className={`preview-area${mobileShowPaper ? " mobile-paper-active" : ""}`} aria-label={screen === "detail" ? "Detalle impreso del presupuesto" : "Vista previa del presupuesto"}>
+      <section className={`preview-area${mobileShowPaper ? " mobile-paper-active" : ""}`} aria-label="Vista previa del presupuesto">
         <div className="preview-toolbar no-print">
-          <span>{screen === "detail" ? "DETALLE DEL PRESUPUESTO · A4" : "VISTA PREVIA · A4"}</span>
-          <span>{screen === "detail" ? selectedQuote?.customer : screen === "new" ? "Borrador sin guardar" : "Seleccioná un presupuesto para ver el detalle"}</span>
+          <span>VISTA PREVIA · A4</span>
+          <span>Presupuesto en edición</span>
         </div>
-        {screen === "detail" && (
-          <div className="detail-preview-actions no-print">
-            <button type="button" className="button button-primary" onClick={downloadQuotePdf} disabled={pdfLoading}>{pdfLoading ? "Preparando PDF…" : "Descargar este PDF"}</button>
-            <button type="button" className="button button-whatsapp" onClick={openWhatsApp}>Abrir WhatsApp</button>
-          </div>
-        )}
-        {screen === "detail" && pdfError && <p className="pdf-feedback pdf-error no-print" role="alert">{pdfError}</p>}
         <div className="paper-frame" style={{ width: PDF_LAYOUT.pageWidth * previewScale, height: PDF_LAYOUT.pageHeight * previewScale }}>
         <article className="paper" ref={paperRef} style={{ transform: `scale(${previewScale})` }}>
           <header className="stationery-header">
