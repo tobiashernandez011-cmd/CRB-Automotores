@@ -18,7 +18,15 @@ En Supabase, abrí **Authentication → Users → Add user → Create new user**
 
 En **Authentication → URL Configuration**, agregá `http://localhost:3000` como URL local. Al desplegar, configurá como Site URL la dirección de producción de Vercel y agregala también a Redirect URLs.
 
-## 4. Configurar Vercel
+## 4. Activar el historial de presupuestos
+
+1. En Supabase, abrí **SQL Editor → New query**.
+2. Copiá y ejecutá el contenido de [`supabase/schema.sql`](./supabase/schema.sql). Esto crea la tabla `public.quotes` y sus políticas RLS.
+3. Volvé a la aplicación e iniciá sesión. Guardá un presupuesto con **Guardar presupuesto**; aparecerá en **Historial**. Usá la búsqueda por cliente y elegí un resultado para ver la hoja completa y los datos.
+
+El personal autenticado puede consultar todos los presupuestos y crear registros bajo su propia cuenta. Los presupuestos guardados no tienen opciones para modificar o eliminar desde la aplicación.
+
+## 5. Configurar Vercel
 
 En el proyecto de Vercel, abrí **Settings → Environment Variables** y cargá:
 
