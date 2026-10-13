@@ -16,6 +16,12 @@ const initialQuote = {
   labor: "",
 };
 
+const PDF_LAYOUT = {
+  pageHeight: 1123,
+  pageWidth: 794,
+  logo: { x: 521, y: 40, width: 220, height: 112 },
+};
+
 function formatAmount(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "$ 0,00";
@@ -265,7 +271,6 @@ export default function Home() {
 
     await document.fonts.ready;
     const logoPng = await svgToPng(logoElement);
-    let logoPosition;
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
       import("html2canvas"),
       import("jspdf"),
@@ -277,27 +282,17 @@ export default function Home() {
       onclone: (clonedDocument) => {
         const paper = clonedDocument.querySelector(".paper");
         if (paper) {
-          paper.style.width = "794px";
-          paper.style.height = "1123px";
-          paper.style.minHeight = "1123px";
+          paper.style.width = `${PDF_LAYOUT.pageWidth}px`;
+          paper.style.height = `${PDF_LAYOUT.pageHeight}px`;
+          paper.style.minHeight = `${PDF_LAYOUT.pageHeight}px`;
           paper.style.padding = "48px 48px 34px";
         }
         const clonedLogo = paper?.querySelector(".brand-logo");
-        if (paper && clonedLogo) {
-          const paperBounds = paper.getBoundingClientRect();
-          const logoBounds = clonedLogo.getBoundingClientRect();
-          logoPosition = {
-            x: (logoBounds.left - paperBounds.left) / paperBounds.width,
-            y: (logoBounds.top - paperBounds.top) / paperBounds.height,
-            width: logoBounds.width / paperBounds.width,
-            height: logoBounds.height / paperBounds.height,
-          };
-          clonedLogo.style.visibility = "hidden";
-        }
+        if (clonedLogo) clonedLogo.style.visibility = "hidden";
       },
       scale: 3,
       useCORS: true,
-      width: 794,
+      width: PDF_LAYOUT.pageWidth,
     });
     const pdf = new jsPDF({
       compress: true,
@@ -306,16 +301,13 @@ export default function Home() {
       unit: "mm",
     });
     pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    if (!logoPosition) {
-      throw new Error("No se pudo determinar la posición del logo para el PDF.");
-    }
     pdf.addImage(
       logoPng,
       "PNG",
-      logoPosition.x * 210,
-      logoPosition.y * 297,
-      logoPosition.width * 210,
-      logoPosition.height * 297,
+      (PDF_LAYOUT.logo.x / PDF_LAYOUT.pageWidth) * 210,
+      (PDF_LAYOUT.logo.y / PDF_LAYOUT.pageHeight) * 297,
+      (PDF_LAYOUT.logo.width / PDF_LAYOUT.pageWidth) * 210,
+      (PDF_LAYOUT.logo.height / PDF_LAYOUT.pageHeight) * 297,
     );
     return {
       blob: pdf.output("blob"),
