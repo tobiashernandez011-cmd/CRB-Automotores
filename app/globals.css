@@ -1,0 +1,551 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --blue: #176195;
+  --deep-blue: #154f79;
+  --yellow: #f1d947;
+  --ink: #24272b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #edf0f3;
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.workspace {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(320px, 410px) minmax(560px, 1fr);
+}
+
+.editor {
+  height: 100vh;
+  overflow-y: auto;
+  padding: 28px 26px 36px;
+  background: #fff;
+  border-right: 1px solid #dce1e6;
+}
+
+.editor-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 22px;
+}
+
+.mini-logo {
+  width: 62px;
+  height: 44px;
+  flex: 0 0 62px;
+  object-fit: contain;
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  color: #727b84;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .07em;
+}
+
+.editor h1 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.account-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -8px 0 15px;
+  color: #65707a;
+  font-size: 11px;
+}
+
+.account-bar button {
+  padding: 5px 8px;
+  border: 1px solid #d2d9df;
+  border-radius: 4px;
+  background: #fff;
+  color: #34404a;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-bottom: 24px;
+}
+
+.button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  text-align: center;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button-primary {
+  background: var(--blue);
+}
+
+.button:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.button-whatsapp {
+  background: #218a54;
+}
+
+.pdf-feedback {
+  margin: -12px 0 16px;
+  color: #315a39;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pdf-error {
+  color: #a62b2b;
+}
+
+.phone-hint {
+  margin-top: -8px;
+  color: #7b838b;
+  font-size: 10px;
+}
+
+.form-section {
+  display: grid;
+  gap: 13px;
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid #e6e9ed;
+}
+
+.form-section h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.field > span {
+  color: #414951;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #cfd5dc;
+  border-radius: 5px;
+  outline: none;
+  background: #fff;
+  color: #20262d;
+  font-size: 13px;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px #1761951c;
+}
+
+.field textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.field small {
+  color: #7b838b;
+  font-size: 10px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 100px;
+  gap: 12px;
+}
+
+.total-preview {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 5px;
+  background: #f2f5f7;
+  font-size: 12px;
+}
+
+.editor-note {
+  margin: 18px 0 0;
+  color: #777f87;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.preview-area {
+  min-width: 0;
+  overflow: auto;
+  padding: 20px 28px 40px;
+}
+
+.preview-toolbar {
+  max-width: 794px;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto 12px;
+  color: #69737d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.preview-toolbar span + span {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.paper {
+  position: relative;
+  width: min(100%, 794px);
+  min-height: 1123px;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 48px 48px 34px;
+  background: #fff;
+  box-shadow: 0 8px 35px #27344224;
+}
+
+.stationery-header {
+  height: 116px;
+  flex: 0 0 116px;
+  padding-top: 10px;
+}
+
+.header-stripe {
+  position: relative;
+  height: 70px;
+  background: linear-gradient(to bottom, var(--yellow) 0 40%, var(--blue) 40% 100%);
+}
+
+.header-name {
+  position: absolute;
+  top: 6px;
+  left: 18px;
+  color: #292d30;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.brand-logo {
+  position: absolute;
+  z-index: 1;
+  top: -18px;
+  right: 5px;
+  width: 220px;
+  height: 112px;
+  object-fit: contain;
+}
+
+.document-content {
+  flex: 1;
+  padding: 0 14px 32px;
+  color: #202020;
+  font-size: 14px;
+}
+
+.place-date {
+  min-height: 43px;
+  margin-bottom: 22px;
+  text-align: right;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.vehicle-data {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 34px;
+}
+
+.vehicle-data p {
+  min-height: 21px;
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  border-bottom: 1px dotted #aaa;
+  text-transform: uppercase;
+}
+
+.vehicle-data strong {
+  flex: 0 0 108px;
+  font-size: 13px;
+}
+
+.vehicle-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+
+.vehicle-inline p strong {
+  flex-basis: auto;
+}
+
+.work-section {
+  min-height: 154px;
+  margin-bottom: 20px;
+}
+
+.work-section h2 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.work-line {
+  margin: 0 0 7px;
+  padding-left: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.replace-section {
+  min-height: 130px;
+}
+
+.amount-boxes {
+  width: 76%;
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0 auto;
+}
+
+.amount-row {
+  min-height: 33px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 9px;
+  border: 1px solid #393939;
+  font-size: 11px;
+}
+
+.amount-row strong {
+  font-size: 10px;
+}
+
+.amount-final {
+  font-weight: 700;
+}
+
+.stationery-footer {
+  flex: 0 0 auto;
+  margin: 0 -18px;
+  text-align: center;
+}
+
+.legal-copy {
+  margin: 0 0 14px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.footer-yellow {
+  height: 26px;
+  background: var(--yellow);
+}
+
+.footer-blue {
+  padding: 8px 5px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #edf0f3;
+}
+
+.auth-card {
+  width: min(100%, 400px);
+  padding: 32px;
+  border: 1px solid #e0e5e9;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 32px #27344218;
+}
+
+.auth-logo {
+  width: 152px;
+  height: 82px;
+  display: block;
+  margin: 0 auto 14px;
+}
+
+.auth-card > .eyebrow {
+  text-align: center;
+}
+
+.auth-card h1 {
+  margin: 5px 0 24px;
+  text-align: center;
+  font-size: 22px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form .button {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.auth-error,
+.auth-message {
+  margin: 0;
+  color: #a62b2b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.auth-message {
+  padding: 12px;
+  border-radius: 5px;
+  background: #fff5df;
+  color: #755315;
+}
+
+.auth-help {
+  margin: 0;
+  color: #737d86;
+  font-size: 11px;
+  text-align: center;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media (max-width: 1000px) {
+  .workspace {
+    grid-template-columns: minmax(290px, 360px) minmax(520px, 1fr);
+  }
+
+  .preview-area {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .paper {
+    padding-right: 38px;
+    padding-left: 38px;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .editor {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    border-right: 0;
+  }
+
+  .preview-area {
+    overflow: auto;
+    padding: 16px 10px 28px;
+  }
+
+  .paper {
+    width: 794px;
+    min-height: 1123px;
+    transform-origin: top left;
+  }
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .workspace,
+  .preview-area {
+    display: block;
+    width: 210mm;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .paper {
+    width: 210mm;
+    height: 297mm;
+    min-height: 0;
+    margin: 0;
+    padding: 16mm 16mm 10mm;
+    box-shadow: none;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}
