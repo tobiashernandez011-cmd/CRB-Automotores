@@ -704,6 +704,11 @@ export default function Home() {
     return `https://wa.me/${phone}`;
   }
 
+  function openWhatsApp() {
+    const url = getWhatsAppUrl();
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   function getEmailUrl() {
     const recipient = quote.customerEmail.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
@@ -996,14 +1001,14 @@ export default function Home() {
           <button className="button button-primary" type="button" onClick={downloadQuotePdf} disabled={pdfLoading}>
             {pdfLoading ? "Preparando PDF…" : "Descargar PDF"}
           </button>
-          <button className="button button-whatsapp" type="button" onClick={() => shareQuote("whatsapp")} disabled={pdfLoading}>
-            {pdfLoading ? "Preparando…" : "PDF + WhatsApp"}
+          <button className="button button-whatsapp" type="button" onClick={openWhatsApp}>
+            Abrir WhatsApp
           </button>
           <button className="button button-email" type="button" onClick={() => shareQuote("email")} disabled={pdfLoading}>
             {pdfLoading ? "Preparando…" : "PDF + correo"}
           </button>
         </div>
-        <p className="editor-note action-note">En celulares compatibles se abre el menú para compartir el PDF. Elegí WhatsApp o tu app de correo y confirmá el destinatario. Si no está disponible, se descarga el archivo y aparece el acceso directo.</p>
+        <p className="editor-note action-note">WhatsApp abre el chat del número ingresado. Para adjuntar el PDF, descargalo primero y adjuntalo desde el chat.</p>
         {pdfError && <p className="pdf-feedback pdf-error no-print" role="alert">{pdfError}</p>}
         {pdfMessage && <p className="pdf-feedback no-print" role="status">{pdfMessage}</p>}
         {shareFallback && (
@@ -1040,7 +1045,6 @@ export default function Home() {
           <Field label="Mano de obra chapa y pintura" type="number" min="0" step="0.01" value={quote.labor} onChange={(event) => update("labor", event.target.value)} placeholder="0,00" />
           <div className="total-preview">FINAL <strong>{formatAmount(finalAmount)}</strong></div>
         </section>
-        <p className="editor-note">PDF + WhatsApp intenta adjuntar el archivo desde el menú de compartir; si el dispositivo no lo admite, descargalo y adjuntalo manualmente.</p>
       </aside>
 
       <section className={`preview-area${mobileShowPaper ? " mobile-paper-active" : ""}`} aria-label="Vista previa del presupuesto">
