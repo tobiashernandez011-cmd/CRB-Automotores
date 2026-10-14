@@ -295,10 +295,12 @@ textarea {
 .header-name {
   position: absolute;
   top: 6px;
-  left: 18px;
+  left: 0;
+  width: calc(100% - 225px);
   color: #292d30;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
+  text-align: center;
 }
 
 .brand-logo {
@@ -315,14 +317,14 @@ textarea {
   flex: 1;
   padding: 0 14px 32px;
   color: #202020;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .place-date {
   min-height: 43px;
   margin-bottom: 22px;
   text-align: right;
-  font-size: 14px;
+  font-size: 16px;
   text-transform: uppercase;
 }
 
@@ -343,7 +345,7 @@ textarea {
 
 .vehicle-data strong {
   flex: 0 0 108px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .vehicle-inline {
@@ -363,14 +365,14 @@ textarea {
 
 .work-section h2 {
   margin: 0 0 12px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .work-line {
   margin: 0 0 7px;
   padding-left: 10px;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.4;
 }
 
@@ -393,11 +395,11 @@ textarea {
   gap: 12px;
   padding: 5px 9px;
   border: 1px solid #393939;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .amount-row strong {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .amount-final {
@@ -412,7 +414,7 @@ textarea {
 
 .legal-copy {
   margin: 0 0 14px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1.5;
 }
@@ -426,7 +428,7 @@ textarea {
   padding: 8px 5px;
   background: var(--blue);
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: .01em;
   white-space: nowrap;
 }
