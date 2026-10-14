@@ -20,8 +20,9 @@ const initialQuote = {
 const PDF_LAYOUT = {
   pageHeight: 1123,
   pageWidth: 794,
+  header: { x: 48, y: 58, width: 698, height: 70, yellowHeight: 28 },
+  title: { x: 48, y: 64, width: 473, fontSize: 18 },
   logo: { x: 521, y: 40, width: 220, height: 112 },
-  headerTitle: { x: 284.5, y: 79 },
 };
 const QUOTE_PDF_BUCKET = "quote-pdfs";
 const HISTORY_PAGE_SIZE = 25;
@@ -593,15 +594,7 @@ export default function Home() {
         if (clonedLogo) clonedLogo.style.visibility = "hidden";
         const clonedTitle = paper?.querySelector(".header-name");
         if (clonedTitle) {
-          clonedTitle.style.visibility = "visible";
-          clonedTitle.style.left = "0";
-          clonedTitle.style.top = "6px";
-          clonedTitle.style.width = "calc(100% - 225px)";
-          clonedTitle.style.fontFamily = "Arial, Helvetica, sans-serif";
-          clonedTitle.style.fontSize = "18px";
-          clonedTitle.style.fontWeight = "700";
-          clonedTitle.style.lineHeight = "normal";
-          clonedTitle.style.textAlign = "center";
+          clonedTitle.style.visibility = "hidden";
         }
       },
       scale: 3,
@@ -614,11 +607,37 @@ export default function Home() {
     const canvasContext = canvas.getContext("2d");
     if (!canvasContext) throw new Error("No se pudo finalizar la hoja del presupuesto para el PDF.");
 
+    const scaleX = canvas.width / PDF_LAYOUT.pageWidth;
+    const scaleY = canvas.height / PDF_LAYOUT.pageHeight;
+    canvasContext.fillStyle = "#176195";
+    canvasContext.fillRect(
+      PDF_LAYOUT.header.x * scaleX,
+      PDF_LAYOUT.header.y * scaleY,
+      PDF_LAYOUT.header.width * scaleX,
+      PDF_LAYOUT.header.height * scaleY,
+    );
+    canvasContext.fillStyle = "#f1d947";
+    canvasContext.fillRect(
+      PDF_LAYOUT.header.x * scaleX,
+      PDF_LAYOUT.header.y * scaleY,
+      PDF_LAYOUT.header.width * scaleX,
+      PDF_LAYOUT.header.yellowHeight * scaleY,
+    );
+
+    canvasContext.fillStyle = "#292d30";
+    canvasContext.font = `bold ${PDF_LAYOUT.title.fontSize * scaleY}px Arial, Helvetica, sans-serif`;
+    canvasContext.textAlign = "center";
+    canvasContext.textBaseline = "top";
+    canvasContext.fillText(
+      QUOTE_HEADER_TITLE,
+      (PDF_LAYOUT.title.x + PDF_LAYOUT.title.width / 2) * scaleX,
+      PDF_LAYOUT.title.y * scaleY,
+      PDF_LAYOUT.title.width * scaleX,
+    );
+
     const logoImage = new window.Image();
     logoImage.src = logoPng;
     await logoImage.decode();
-    const scaleX = canvas.width / PDF_LAYOUT.pageWidth;
-    const scaleY = canvas.height / PDF_LAYOUT.pageHeight;
     canvasContext.drawImage(
       logoImage,
       PDF_LAYOUT.logo.x * scaleX,
