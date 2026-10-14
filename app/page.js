@@ -592,7 +592,17 @@ export default function Home() {
         const clonedLogo = paper?.querySelector(".brand-logo");
         if (clonedLogo) clonedLogo.style.visibility = "hidden";
         const clonedTitle = paper?.querySelector(".header-name");
-        if (clonedTitle) clonedTitle.style.visibility = "hidden";
+        if (clonedTitle) {
+          clonedTitle.style.visibility = "visible";
+          clonedTitle.style.left = "0";
+          clonedTitle.style.top = "6px";
+          clonedTitle.style.width = "calc(100% - 225px)";
+          clonedTitle.style.fontFamily = "Arial, Helvetica, sans-serif";
+          clonedTitle.style.fontSize = "18px";
+          clonedTitle.style.fontWeight = "700";
+          clonedTitle.style.lineHeight = "normal";
+          clonedTitle.style.textAlign = "center";
+        }
       },
       scale: 3,
       useCORS: true,
@@ -615,16 +625,6 @@ export default function Home() {
       PDF_LAYOUT.logo.y * scaleY,
       PDF_LAYOUT.logo.width * scaleX,
       PDF_LAYOUT.logo.height * scaleY,
-    );
-    canvasContext.fillStyle = "#292d30";
-    canvasContext.font = `bold ${18 * scaleY}px Arial, Helvetica, sans-serif`;
-    canvasContext.textAlign = "center";
-    canvasContext.textBaseline = "alphabetic";
-    canvasContext.fillText(
-      QUOTE_HEADER_TITLE,
-      PDF_LAYOUT.headerTitle.x * scaleX,
-      PDF_LAYOUT.headerTitle.y * scaleY,
-      (PDF_LAYOUT.logo.x - PDF_LAYOUT.headerTitle.x + 8) * scaleX,
     );
 
     const pdf = new jsPDF({
@@ -931,7 +931,7 @@ export default function Home() {
         <article className="paper" ref={paperRef} style={{ transform: `scale(${previewScale})` }}>
           <header className="stationery-header">
             <div className="header-stripe">
-              <span className="header-name">CENTRO DE REPARACIONES BRAGADO</span>
+              <span className="header-name">{QUOTE_HEADER_TITLE}</span>
               <CrbLogo className="brand-logo" />
             </div>
           </header>
