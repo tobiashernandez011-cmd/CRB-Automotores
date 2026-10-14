@@ -20,13 +20,10 @@ const initialQuote = {
 const PDF_LAYOUT = {
   pageHeight: 1123,
   pageWidth: 794,
-  header: { x: 48, y: 58, width: 698, height: 70, yellowHeight: 28 },
-  title: { x: 48, y: 64, width: 473, fontSize: 18 },
   logo: { x: 521, y: 40, width: 220, height: 112 },
 };
 const QUOTE_PDF_BUCKET = "quote-pdfs";
 const HISTORY_PAGE_SIZE = 25;
-const QUOTE_HEADER_TITLE = "CENTRO DE REPARACIONES BRAGADO";
 
 function cleanText(value, multiline = false) {
   const normalized = value.replace(/\r\n?/g, "\n");
@@ -592,10 +589,6 @@ export default function Home() {
         }
         const clonedLogo = paper?.querySelector(".brand-logo");
         if (clonedLogo) clonedLogo.style.visibility = "hidden";
-        const clonedTitle = paper?.querySelector(".header-name");
-        if (clonedTitle) {
-          clonedTitle.style.visibility = "hidden";
-        }
       },
       scale: 3,
       useCORS: true,
@@ -604,47 +597,6 @@ export default function Home() {
     if (!Number.isFinite(canvas.width) || !Number.isFinite(canvas.height) || canvas.width <= 0 || canvas.height <= 0) {
       throw new Error("No se pudo preparar la imagen del presupuesto para el PDF.");
     }
-    const canvasContext = canvas.getContext("2d");
-    if (!canvasContext) throw new Error("No se pudo finalizar la hoja del presupuesto para el PDF.");
-
-    const scaleX = canvas.width / PDF_LAYOUT.pageWidth;
-    const scaleY = canvas.height / PDF_LAYOUT.pageHeight;
-    canvasContext.fillStyle = "#176195";
-    canvasContext.fillRect(
-      PDF_LAYOUT.header.x * scaleX,
-      PDF_LAYOUT.header.y * scaleY,
-      PDF_LAYOUT.header.width * scaleX,
-      PDF_LAYOUT.header.height * scaleY,
-    );
-    canvasContext.fillStyle = "#f1d947";
-    canvasContext.fillRect(
-      PDF_LAYOUT.header.x * scaleX,
-      PDF_LAYOUT.header.y * scaleY,
-      PDF_LAYOUT.header.width * scaleX,
-      PDF_LAYOUT.header.yellowHeight * scaleY,
-    );
-
-    canvasContext.fillStyle = "#292d30";
-    canvasContext.font = `bold ${PDF_LAYOUT.title.fontSize * scaleY}px Arial, Helvetica, sans-serif`;
-    canvasContext.textAlign = "center";
-    canvasContext.textBaseline = "top";
-    canvasContext.fillText(
-      QUOTE_HEADER_TITLE,
-      (PDF_LAYOUT.title.x + PDF_LAYOUT.title.width / 2) * scaleX,
-      PDF_LAYOUT.title.y * scaleY,
-      PDF_LAYOUT.title.width * scaleX,
-    );
-
-    const logoImage = new window.Image();
-    logoImage.src = logoPng;
-    await logoImage.decode();
-    canvasContext.drawImage(
-      logoImage,
-      PDF_LAYOUT.logo.x * scaleX,
-      PDF_LAYOUT.logo.y * scaleY,
-      PDF_LAYOUT.logo.width * scaleX,
-      PDF_LAYOUT.logo.height * scaleY,
-    );
 
     const pdf = new jsPDF({
       compress: true,
@@ -653,6 +605,14 @@ export default function Home() {
       unit: "mm",
     });
     pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, 210, 297, undefined, "FAST");
+    pdf.addImage(
+      logoPng,
+      "PNG",
+      (PDF_LAYOUT.logo.x / PDF_LAYOUT.pageWidth) * 210,
+      (PDF_LAYOUT.logo.y / PDF_LAYOUT.pageHeight) * 297,
+      (PDF_LAYOUT.logo.width / PDF_LAYOUT.pageWidth) * 210,
+      (PDF_LAYOUT.logo.height / PDF_LAYOUT.pageHeight) * 297,
+    );
     return {
       blob: pdf.output("blob"),
       fileName: quoteFileName(quote),
@@ -950,7 +910,7 @@ export default function Home() {
         <article className="paper" ref={paperRef} style={{ transform: `scale(${previewScale})` }}>
           <header className="stationery-header">
             <div className="header-stripe">
-              <span className="header-name">{QUOTE_HEADER_TITLE}</span>
+              <span className="header-name">CENTRO DE REPARACIONES BRAGADO</span>
               <CrbLogo className="brand-logo" />
             </div>
           </header>
