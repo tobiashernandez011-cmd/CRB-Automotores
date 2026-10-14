@@ -844,6 +844,8 @@ textarea {
   body {
     width: 210mm;
     height: 297mm;
+    min-width: 0;
+    max-width: none;
     margin: 0;
     background: #fff;
     print-color-adjust: exact;
@@ -854,10 +856,21 @@ textarea {
     display: none !important;
   }
 
-  .workspace,
-  .preview-area {
+  .workspace {
     display: block;
     width: 210mm;
+    height: 297mm;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .preview-area,
+  .preview-area:not(.mobile-paper-active) {
+    display: block !important;
+    width: 210mm;
+    height: 297mm;
     min-height: 0;
     margin: 0;
     padding: 0;
@@ -867,18 +880,45 @@ textarea {
   .paper-frame {
     width: 210mm !important;
     height: 297mm !important;
-    margin: 0;
+    margin: 0 auto;
   }
 
   .paper {
     width: 210mm;
     height: 297mm;
-    min-height: 0;
+    min-height: 297mm;
     margin: 0;
     padding: 16mm 16mm 10mm;
     box-shadow: none;
     transform: none !important;
     break-after: avoid;
     page-break-after: avoid;
+  }
+
+  .document-content {
+    flex: 1 0 auto;
+  }
+
+  .stationery-header,
+  .stationery-footer {
+    flex-shrink: 0;
+  }
+
+  .work-section {
+    min-height: 0;
+    margin-bottom: 14px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .replace-section {
+    min-height: 0;
+  }
+
+  .amount-boxes,
+  .amount-row,
+  .vehicle-data {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

@@ -601,6 +601,32 @@ export default function Home() {
     if (!Number.isFinite(canvas.width) || !Number.isFinite(canvas.height) || canvas.width <= 0 || canvas.height <= 0) {
       throw new Error("No se pudo preparar la imagen del presupuesto para el PDF.");
     }
+    const canvasContext = canvas.getContext("2d");
+    if (!canvasContext) throw new Error("No se pudo finalizar la hoja del presupuesto para el PDF.");
+
+    const logoImage = new window.Image();
+    logoImage.src = logoPng;
+    await logoImage.decode();
+    const scaleX = canvas.width / PDF_LAYOUT.pageWidth;
+    const scaleY = canvas.height / PDF_LAYOUT.pageHeight;
+    canvasContext.drawImage(
+      logoImage,
+      PDF_LAYOUT.logo.x * scaleX,
+      PDF_LAYOUT.logo.y * scaleY,
+      PDF_LAYOUT.logo.width * scaleX,
+      PDF_LAYOUT.logo.height * scaleY,
+    );
+    canvasContext.fillStyle = "#292d30";
+    canvasContext.font = `bold ${18 * scaleY}px Arial, Helvetica, sans-serif`;
+    canvasContext.textAlign = "center";
+    canvasContext.textBaseline = "alphabetic";
+    canvasContext.fillText(
+      QUOTE_HEADER_TITLE,
+      PDF_LAYOUT.headerTitle.x * scaleX,
+      PDF_LAYOUT.headerTitle.y * scaleY,
+      (PDF_LAYOUT.logo.x - PDF_LAYOUT.headerTitle.x + 8) * scaleX,
+    );
+
     const pdf = new jsPDF({
       compress: true,
       format: "a4",
@@ -608,23 +634,6 @@ export default function Home() {
       unit: "mm",
     });
     pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13.5);
-    pdf.setTextColor(41, 45, 48);
-    pdf.text(
-      QUOTE_HEADER_TITLE,
-      (PDF_LAYOUT.headerTitle.x / PDF_LAYOUT.pageWidth) * 210,
-      (PDF_LAYOUT.headerTitle.y / PDF_LAYOUT.pageHeight) * 297,
-      { align: "center" },
-    );
-    pdf.addImage(
-      logoPng,
-      "PNG",
-      (PDF_LAYOUT.logo.x / PDF_LAYOUT.pageWidth) * 210,
-      (PDF_LAYOUT.logo.y / PDF_LAYOUT.pageHeight) * 297,
-      (PDF_LAYOUT.logo.width / PDF_LAYOUT.pageWidth) * 210,
-      (PDF_LAYOUT.logo.height / PDF_LAYOUT.pageHeight) * 297,
-    );
     return {
       blob: pdf.output("blob"),
       fileName: quoteFileName(quote),
