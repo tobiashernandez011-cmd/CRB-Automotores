@@ -148,6 +148,10 @@ textarea {
   background: #7256a8;
 }
 
+.button-danger {
+  background: #a62b2b;
+}
+
 .action-note {
   margin-top: 0;
   margin-bottom: 20px;
@@ -294,11 +298,19 @@ textarea {
 .header-stripe {
   position: relative;
   height: 70px;
-  background: linear-gradient(to bottom, var(--yellow) 40%, var(--blue) 40%);
+  background: var(--blue);
+}
+
+.header-stripe::before {
+  position: absolute;
+  inset: 0 0 60%;
+  background: var(--yellow);
+  content: "";
 }
 
 .header-name {
   position: absolute;
+  z-index: 2;
   top: 6px;
   left: 0;
   width: calc(100% - 225px);
@@ -577,6 +589,12 @@ textarea {
   gap: 14px;
 }
 
+.history-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .history-card-header h2 {
   margin: 0;
   color: #252a2f;
@@ -645,6 +663,13 @@ textarea {
 
 .history-error {
   color: #a62b2b;
+}
+
+.history-message {
+  margin: 16px 0;
+  color: #315a39;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .history-load-more {
@@ -800,12 +825,16 @@ textarea {
     align-items: flex-start;
   }
 
+  .history-card-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
   .history-card-header h2 {
     font-size: 15px;
   }
 
-  .history-card-header .button {
-    flex: 0 0 auto;
+  .history-card-actions .button {
     font-size: 11px;
   }
 }

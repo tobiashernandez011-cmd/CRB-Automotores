@@ -139,6 +139,7 @@ set public = false,
 drop policy if exists "Authenticated users can read quote PDFs" on storage.objects;
 drop policy if exists "Authenticated users can upload quote PDFs" on storage.objects;
 drop policy if exists "Uploaders can delete their quote PDFs" on storage.objects;
+drop policy if exists "Authorized staff can delete quote PDFs" on storage.objects;
 
 create policy "Authenticated users can read quote PDFs"
   on storage.objects
@@ -159,12 +160,19 @@ create policy "Authenticated users can upload quote PDFs"
     and owner_id = (select auth.uid())
   );
 
-create policy "Uploaders can delete their quote PDFs"
+create policy "Authorized staff can delete quote PDFs"
   on storage.objects
   for delete
   to authenticated
   using (
     bucket_id = 'quote-pdfs'
     and (select public.is_authorized_staff())
-    and owner_id = (select auth.uid())
   );
+
+create policy "Authorized staff can delete quotes"
+  on public.quotes
+  for delete
+  to authenticated
+  using ((select public.is_authorized_staff()));
+
+grant delete on public.quotes to authenticated;

@@ -38,7 +38,7 @@ on conflict (user_id) do nothing;
 
 Sin una fila en `staff_members`, una cuenta no puede consultar ni guardar presupuestos, aunque haya podido iniciar sesión.
 
-Los PDFs nuevos se guardan en el bucket antes de iniciar la descarga. Si no se pueden guardar el archivo y sus datos, la descarga se cancela y la aplicación muestra el error. Desde **Historial** se puede buscar por cliente y rango de fechas, consultar los datos y abrir el PDF. Los registros anteriores que no tengan `pdf_path` siguen mostrando sus datos, pero no se puede recuperar un PDF que nunca se archivó.
+Los PDFs nuevos se guardan en el bucket antes de iniciar la descarga. Si no se pueden guardar el archivo y sus datos, la descarga se cancela y la aplicación muestra el error. Desde **Historial** se puede buscar por cliente y rango de fechas, consultar los datos, abrir el PDF y eliminar presupuestos. Al borrar, la aplicación elimina el PDF privado y sus datos; si falla el borrado del registro, intenta restaurar el archivo y muestra cualquier error. Todos los miembros autorizados del taller pueden eliminar presupuestos. Los registros anteriores que no tengan `pdf_path` siguen mostrando sus datos, pero no se puede recuperar un PDF que nunca se archivó.
 
 ## 5. Configurar Vercel
 
@@ -59,6 +59,7 @@ Aplicá las variables a los entornos que uses y volvé a desplegar el proyecto. 
 - El acceso al historial y los PDFs privados requiere una sesión autenticada. Los permisos de RLS de la tabla y del bucket son la barrera de acceso a los datos, incluso si alguien modifica las solicitudes desde el navegador.
 - Los datos se envían mediante HTTPS; en producción las cookies de Supabase se configuran como `Secure` y `SameSite=Lax`. La sesión que administra el SDK en el navegador no es `HttpOnly`: el cliente de Supabase necesita leerla para renovar y cerrar la sesión. Las contraseñas no se guardan en la app; Supabase Auth las almacena con hash. Supabase administra el cifrado de almacenamiento en reposo.
 - La app impone límites de longitud, valida los datos antes de guardar, representa el contenido como texto (sin insertarlo como HTML) y usa las consultas parametrizadas del cliente Supabase. La base también valida los campos y `created_by`.
+- El título del encabezado se agrega al PDF como texto en coordenadas A4 fijas y centrado sobre la banda amarilla, independientemente de la escala de vista previa del móvil.
 - Next.js añade una CSP con nonce, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y HSTS. Vercel debe servir el sitio por HTTPS.
 - Ejecutá `npm audit` periódicamente. Las vulnerabilidades de dependencias de desarrollo deben revisarse y actualizarse sin forzar cambios mayores de Tailwind o Next.js.
 

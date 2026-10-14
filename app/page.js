@@ -21,9 +21,11 @@ const PDF_LAYOUT = {
   pageHeight: 1123,
   pageWidth: 794,
   logo: { x: 521, y: 40, width: 220, height: 112 },
+  headerTitle: { x: 284.5, y: 79 },
 };
 const QUOTE_PDF_BUCKET = "quote-pdfs";
 const HISTORY_PAGE_SIZE = 25;
+const QUOTE_HEADER_TITLE = "CENTRO DE REPARACIONES BRAGADO";
 
 function cleanText(value, multiline = false) {
   const normalized = value.replace(/\r\n?/g, "\n");
@@ -249,6 +251,8 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [historyError, setHistoryError] = useState("");
+  const [historyMessage, setHistoryMessage] = useState("");
+  const [historyDeletingId, setHistoryDeletingId] = useState("");
   const [historyPdfLoading, setHistoryPdfLoading] = useState("");
   const paperRef = useRef(null);
 
@@ -487,6 +491,62 @@ export default function Home() {
     }
   }
 
+  async function deleteSavedQuote(row) {
+    if (!supabase || !row?.id || historyDeletingId) return;
+    const customer = cleanText(row.customer) || "este cliente";
+    if (!window.confirm(`¿Eliminar definitivamente el presupuesto de ${customer} del ${formatDate(row.quote_date)}? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    setHistoryDeletingId(row.id);
+    setHistoryError("");
+    setHistoryMessage("");
+    let pdfBackup = null;
+    let pdfRemoved = false;
+    try {
+      if (row.pdf_path) {
+        const { data, error } = await supabase.storage
+          .from(QUOTE_PDF_BUCKET)
+          .download(row.pdf_path);
+        if (error) throw new Error(`No se pudo preparar el PDF para eliminar el presupuesto: ${error.message}`);
+        pdfBackup = data;
+
+        const { error: removeError } = await supabase.storage
+          .from(QUOTE_PDF_BUCKET)
+          .remove([row.pdf_path]);
+        if (removeError) throw new Error(`No se pudo eliminar el PDF: ${removeError.message}`);
+        pdfRemoved = true;
+      }
+
+      const { data, error } = await supabase
+        .from("quotes")
+        .delete()
+        .eq("id", row.id)
+        .select("id");
+      if (error) throw error;
+      if (!data?.some((deletedRow) => deletedRow.id === row.id)) {
+        throw new Error("El presupuesto no se eliminó. Verificá los permisos y volvé a intentar.");
+      }
+
+      setHistoryRows((current) => current.filter((item) => item.id !== row.id));
+      setHistoryMessage("Presupuesto eliminado correctamente.");
+    } catch (error) {
+      if (pdfBackup && pdfRemoved) {
+        const { error: restoreError } = await supabase.storage
+          .from(QUOTE_PDF_BUCKET)
+          .upload(row.pdf_path, pdfBackup, { contentType: "application/pdf", upsert: false });
+        if (restoreError) {
+          setHistoryError(`No se pudo completar la eliminación y tampoco restaurar el PDF. Contactá al administrador. Error al eliminar: ${error instanceof Error ? error.message : "error desconocido"}. Error al restaurar: ${restoreError.message}`);
+          setHistoryDeletingId("");
+          return;
+        }
+      }
+      setHistoryError(error instanceof Error ? error.message : "No se pudo eliminar el presupuesto.");
+    } finally {
+      setHistoryDeletingId("");
+    }
+  }
+
   async function createQuotePdf() {
     if (!paperRef.current) {
       throw new Error("No se encontró la hoja del presupuesto para generar el PDF.");
@@ -531,6 +591,8 @@ export default function Home() {
         }
         const clonedLogo = paper?.querySelector(".brand-logo");
         if (clonedLogo) clonedLogo.style.visibility = "hidden";
+        const clonedTitle = paper?.querySelector(".header-name");
+        if (clonedTitle) clonedTitle.style.visibility = "hidden";
       },
       scale: 3,
       useCORS: true,
@@ -546,6 +608,15 @@ export default function Home() {
       unit: "mm",
     });
     pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, 210, 297, undefined, "FAST");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(13.5);
+    pdf.setTextColor(41, 45, 48);
+    pdf.text(
+      QUOTE_HEADER_TITLE,
+      (PDF_LAYOUT.headerTitle.x / PDF_LAYOUT.pageWidth) * 210,
+      (PDF_LAYOUT.headerTitle.y / PDF_LAYOUT.pageHeight) * 297,
+      { align: "center" },
+    );
     pdf.addImage(
       logoPng,
       "PNG",
@@ -723,6 +794,7 @@ export default function Home() {
         </form>
 
         {historyError && <p className="history-error" role="alert">{historyError}</p>}
+        {historyMessage && <p className="history-message" role="status">{historyMessage}</p>}
         {historyLoading && historyRows.length === 0 && <p className="history-empty">Cargando presupuestos…</p>}
         {!historyLoading && historyRows.length === 0 && !historyError && <p className="history-empty">No se encontraron presupuestos con esos filtros.</p>}
 
@@ -734,9 +806,14 @@ export default function Home() {
                   <h2>{row.customer}</h2>
                   <time dateTime={row.quote_date}>{formatDate(row.quote_date)}</time>
                 </div>
-                <button className="button button-primary" type="button" onClick={() => openSavedPdf(row)} disabled={!row.pdf_path || historyPdfLoading === row.id}>
-                  {historyPdfLoading === row.id ? "Abriendo…" : "Abrir PDF"}
-                </button>
+                <div className="history-card-actions">
+                  <button className="button button-primary" type="button" onClick={() => openSavedPdf(row)} disabled={!row.pdf_path || historyPdfLoading === row.id || historyDeletingId === row.id}>
+                    {historyPdfLoading === row.id ? "Abriendo…" : "Abrir PDF"}
+                  </button>
+                  <button className="button button-danger" type="button" onClick={() => deleteSavedQuote(row)} disabled={historyDeletingId === row.id || historyPdfLoading === row.id}>
+                    {historyDeletingId === row.id ? "Eliminando…" : "Eliminar"}
+                  </button>
+                </div>
               </div>
               <p className="history-summary">{[row.vehicle, row.plate, row.year].filter(Boolean).join(" · ") || "Sin datos del vehículo"}</p>
               <details className="history-details">
