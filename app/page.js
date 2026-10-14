@@ -275,7 +275,6 @@ export default function Home() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState("");
   const [pdfMessage, setPdfMessage] = useState("");
-  const [shareFallback, setShareFallback] = useState(null);
   const [whatsAppError, setWhatsAppError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [mobileShowPaper, setMobileShowPaper] = useState(false);
@@ -681,7 +680,6 @@ export default function Home() {
     setPdfLoading(true);
     setPdfError("");
     setPdfMessage("");
-    setShareFallback(null);
     try {
       const { blob, fileName } = await createQuotePdf();
       await saveQuotePdf(blob);
@@ -723,91 +721,9 @@ export default function Home() {
     return composeUrl.toString();
   }
 
-  function canSharePdfFile() {
-    if (typeof navigator === "undefined" || typeof File === "undefined" ||
-        typeof navigator.share !== "function" || typeof navigator.canShare !== "function") {
-      return false;
-    }
-    const testFile = new File([""], "presupuesto.pdf", { type: "application/pdf" });
-    return navigator.canShare({ files: [testFile] });
-  }
-
-  async function shareQuote(channel) {
-    setPdfLoading(true);
-    setPdfError("");
-    setPdfMessage("");
-    setShareFallback(null);
-    setWhatsAppError("");
-    setEmailError("");
-
-    const fallbackUrl = channel === "whatsapp" ? getWhatsAppUrl() : getEmailUrl();
-    if (!fallbackUrl) {
-      setPdfLoading(false);
-      return;
-    }
-
-    try {
-      const { blob, fileName } = await createQuotePdf();
-      const file = typeof File === "undefined"
-        ? null
-        : new File([blob], fileName, { type: "application/pdf" });
-      let sharePromise = null;
-      let shareError = null;
-
-      if (file && canSharePdfFile() && navigator.canShare({ files: [file] })) {
-        try {
-          const customer = cleanText(quote.customer);
-          const vehicle = cleanText(quote.vehicle);
-          const destination = channel === "whatsapp"
-            ? `Presupuesto de ${customer}${vehicle ? ` para ${vehicle}` : ""}.`
-            : `Presupuesto de ${customer}${vehicle ? ` para ${vehicle}` : ""}. Destinatario: ${quote.customerEmail.trim()}.`;
-          sharePromise = navigator.share({
-            files: [file],
-            title: `Presupuesto C.R.B. - ${customer}`,
-            text: destination,
-          }).then(
-            () => ({ error: null }),
-            (error) => ({ error }),
-          );
-        } catch (error) {
-          shareError = error;
-        }
-      }
-
-      await saveQuotePdf(blob);
-
-      if (sharePromise) {
-        const { error } = await sharePromise;
-        if (!error) {
-          setPdfMessage(
-            channel === "whatsapp"
-              ? "PDF listo para compartir. Elegí WhatsApp y luego el contacto del cliente."
-              : "PDF listo para compartir. Elegí una app de correo y verificá el destinatario antes de enviarlo.",
-          );
-          return;
-        }
-        if (error instanceof Error && error.name === "AbortError") {
-          setPdfMessage("Se canceló el menú de compartir. El presupuesto quedó guardado en el historial.");
-          return;
-        }
-        shareError = error;
-      }
-
-      downloadPdf(blob, fileName);
-      setShareFallback({
-        href: fallbackUrl,
-        label: channel === "whatsapp" ? "Abrir WhatsApp" : "Abrir Gmail",
-      });
-      setPdfMessage(
-        shareError
-          ? "No se pudo abrir el menú para compartir. Se descargó el PDF; abrí la app y adjuntalo para enviarlo."
-          : "Este navegador no permite adjuntar archivos al compartir. Se descargó el PDF; abrí la app y adjuntalo para enviarlo.",
-      );
-    } catch (error) {
-      setPdfError(error instanceof Error ? error.message : "No se pudo preparar el presupuesto para compartir.");
-    } finally {
-      setPdfLoading(false);
-    }
+  function openEmail() {
+    const url = getEmailUrl();
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function update(field, value) {
@@ -1004,18 +920,13 @@ export default function Home() {
           <button className="button button-whatsapp" type="button" onClick={openWhatsApp}>
             Abrir WhatsApp
           </button>
-          <button className="button button-email" type="button" onClick={() => shareQuote("email")} disabled={pdfLoading}>
-            {pdfLoading ? "Preparando…" : "PDF + correo"}
+          <button className="button button-email" type="button" onClick={openEmail}>
+            Abrir Gmail
           </button>
         </div>
-        <p className="editor-note action-note">WhatsApp abre el chat del número ingresado. Para adjuntar el PDF, descargalo primero y adjuntalo desde el chat.</p>
+        <p className="editor-note action-note">WhatsApp abre el chat y Gmail abre un borrador dirigido al cliente. Descargá el PDF y adjuntalo manualmente antes de enviarlo.</p>
         {pdfError && <p className="pdf-feedback pdf-error no-print" role="alert">{pdfError}</p>}
         {pdfMessage && <p className="pdf-feedback no-print" role="status">{pdfMessage}</p>}
-        {shareFallback && (
-          <a className="button button-primary share-fallback no-print" href={shareFallback.href} target="_blank" rel="noopener noreferrer">
-            {shareFallback.label}
-          </a>
-        )}
         {whatsAppError && <p className="pdf-feedback pdf-error no-print" role="alert">{whatsAppError}</p>}
         {emailError && <p className="pdf-feedback pdf-error no-print" role="alert">{emailError}</p>}
 
