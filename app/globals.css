@@ -157,6 +157,11 @@ textarea {
   margin-bottom: 20px;
 }
 
+.share-fallback {
+  width: fit-content;
+  margin: -10px 0 18px;
+}
+
 .pdf-feedback {
   margin: -12px 0 16px;
   color: #315a39;

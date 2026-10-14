@@ -66,9 +66,9 @@ Aplicá las variables a los entornos que uses y volvé a desplegar el proyecto. 
 ## PDF, WhatsApp y correo
 
 - **Descargar PDF** genera y descarga una hoja A4 con el formato del presupuesto.
-- **Abrir WhatsApp** abre el chat del número ingresado, sin texto prearmado. Descargá primero el PDF y adjuntalo manualmente desde ese chat.
-- El navegador no permite que esta página adjunte el archivo automáticamente a un chat `wa.me`.
-- **Abrir Gmail** abre un borrador web dirigido a la dirección cargada en el campo del cliente. Descargá primero el PDF y adjuntalo manualmente antes de enviarlo; la aplicación no manda el correo automáticamente.
-- Por seguridad, el navegador no permite que la aplicación adjunte el PDF automáticamente a Gmail.
+- **PDF + WhatsApp** y **PDF + correo** generan y guardan el presupuesto y, si el navegador lo admite, abren el menú nativo para compartir el PDF como archivo adjunto. El usuario elige WhatsApp o una aplicación de correo y confirma el envío.
+- El menú nativo no permite seleccionar automáticamente el chat de WhatsApp ni completar el destinatario del correo. Para WhatsApp se debe elegir el contacto; para correo se debe verificar/completar el destinatario.
+- Si el navegador no admite compartir archivos o no puede iniciar el menú, descarga el PDF y ofrece un acceso directo a WhatsApp o Gmail para adjuntarlo manualmente. Gmail conserva precargada la dirección ingresada.
+- La aplicación nunca envía el correo o mensaje por su cuenta.
 
 Para automatizar un envío desde la cuenta de WhatsApp Business sin usar el menú de compartir hace falta implementar la WhatsApp Business Platform (Cloud API), configurar credenciales seguras en servidor y cumplir sus reglas de consentimiento y plantillas. Una clave `wa.me` o una clave de Supabase no habilitan ese envío.
