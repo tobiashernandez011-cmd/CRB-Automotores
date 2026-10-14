@@ -22,6 +22,55 @@ const PDF_LAYOUT = {
   pageWidth: 794,
   logo: { x: 521, y: 40, width: 220, height: 112 },
 };
+const QUOTE_PDF_BUCKET = "quote-pdfs";
+const HISTORY_PAGE_SIZE = 25;
+
+function cleanText(value, multiline = false) {
+  const normalized = value.replace(/\r\n?/g, "\n");
+  return multiline
+    ? normalized.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "").trim()
+    : normalized.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+}
+
+function validateQuote(quote) {
+  if (!cleanText(quote.customer)) return "Ingresá el nombre del cliente para guardar el presupuesto.";
+  const date = new Date(`${quote.date}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(quote.date) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== quote.date) {
+    return "Ingresá una fecha válida para el presupuesto.";
+  }
+  if (cleanText(quote.customerEmail) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(quote.customerEmail))) {
+    return "Ingresá un correo electrónico válido o dejá el campo vacío.";
+  }
+  if (quote.customer.length > 200 || quote.vehicle.length > 120 || quote.plate.length > 20 ||
+      quote.year.length > 10 || quote.phone.length > 32 || quote.customerEmail.length > 254 ||
+      quote.repair.length > 10000 || quote.replace.length > 10000) {
+    return "Uno o más campos superan el largo permitido.";
+  }
+  for (const amount of [quote.parts, quote.labor]) {
+    if (amount !== "" && (!Number.isFinite(Number(amount)) || Number(amount) < 0 || Number(amount) > 999999999999.99)) {
+      return "Los importes deben ser números positivos válidos.";
+    }
+  }
+  return "";
+}
+
+function escapeLike(value) {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function createUuid() {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.getRandomValues) {
+    throw new Error("El navegador necesita una conexión segura para guardar el PDF.");
+  }
+  if (cryptoApi.randomUUID) return cryptoApi.randomUUID();
+
+  const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 function formatAmount(value) {
   const amount = Number(value);
@@ -165,6 +214,7 @@ function ListField({ label, value, onChange, placeholder }) {
       <span>{label}</span>
       <textarea
         rows={4}
+        maxLength={10000}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -178,6 +228,7 @@ export default function Home() {
   const supabase = createSupabaseClient();
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(!supabase);
+  const [staffAuthorization, setStaffAuthorization] = useState({ userId: "", authorized: false, error: "" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -190,6 +241,15 @@ export default function Home() {
   const [mobileShowPaper, setMobileShowPaper] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
   const [quote, setQuote] = useState(initialQuote);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRows, setHistoryRows] = useState([]);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPdfLoading, setHistoryPdfLoading] = useState("");
   const paperRef = useRef(null);
 
   useEffect(() => {
@@ -232,6 +292,43 @@ export default function Home() {
       subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!session || !supabase) {
+      return undefined;
+    }
+
+    let active = true;
+    supabase.rpc("is_authorized_staff")
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setStaffAuthorization({
+            userId: session.user.id,
+            authorized: false,
+            error: `No se pudo verificar el permiso de personal: ${error.message}`,
+          });
+          return;
+        }
+        setStaffAuthorization({
+          userId: session.user.id,
+          authorized: data === true,
+          error: "",
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        setStaffAuthorization({
+          userId: session.user.id,
+          authorized: false,
+          error: error instanceof Error ? error.message : "No se pudo verificar el permiso de personal.",
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session, supabase]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -280,6 +377,116 @@ export default function Home() {
     }
   }
 
+  async function saveQuotePdf(blob) {
+    if (!supabase || !session?.user?.id) {
+      throw new Error("Tu sesión venció. Iniciá sesión antes de guardar el presupuesto.");
+    }
+    const validationError = validateQuote(quote);
+    if (validationError) throw new Error(validationError);
+
+    const pdfPath = `${createUuid()}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from(QUOTE_PDF_BUCKET)
+      .upload(pdfPath, blob, { contentType: "application/pdf", upsert: false });
+    if (uploadError) {
+      throw new Error(`No se pudo guardar el PDF en el historial: ${uploadError.message}`);
+    }
+
+    const quoteRecord = {
+      customer: cleanText(quote.customer),
+      vehicle: cleanText(quote.vehicle),
+      plate: cleanText(quote.plate),
+      year: cleanText(quote.year),
+      phone: cleanText(quote.phone),
+      customer_email: cleanText(quote.customerEmail),
+      quote_date: quote.date,
+      repair: cleanText(quote.repair, true),
+      replace: cleanText(quote.replace, true),
+      parts: quote.parts === "" ? 0 : Number(quote.parts),
+      labor: quote.labor === "" ? 0 : Number(quote.labor),
+      created_by: session.user.id,
+      pdf_path: pdfPath,
+    };
+    const { error: insertError } = await supabase.from("quotes").insert(quoteRecord);
+    if (insertError) {
+      const { error: cleanupError } = await supabase.storage
+        .from(QUOTE_PDF_BUCKET)
+        .remove([pdfPath]);
+      if (cleanupError) {
+        throw new Error(`No se pudo registrar el presupuesto (${insertError.message}) ni limpiar el PDF temporal (${cleanupError.message}).`);
+      }
+      throw new Error(`No se pudo registrar el presupuesto: ${insertError.message}`);
+    }
+  }
+
+  async function loadHistory({ append = false, filters } = {}) {
+    if (!supabase || !session?.user?.id || historyLoading) return;
+    const search = filters?.search ?? historySearch;
+    const from = filters?.from ?? historyFrom;
+    const to = filters?.to ?? historyTo;
+    if (from && to && from > to) {
+      setHistoryError("La fecha inicial no puede ser posterior a la fecha final.");
+      return;
+    }
+
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const offset = append ? historyRows.length : 0;
+      let request = supabase
+        .from("quotes")
+        .select("id, customer, vehicle, plate, year, phone, customer_email, quote_date, repair, replace, parts, labor, created_at, pdf_path", { count: "exact" })
+        .order("quote_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + HISTORY_PAGE_SIZE - 1);
+      if (search.trim()) {
+        request = request.ilike("customer", `%${escapeLike(search.trim())}%`);
+      }
+      if (from) request = request.gte("quote_date", from);
+      if (to) request = request.lte("quote_date", to);
+
+      const { data, error, count } = await request;
+      if (error) throw error;
+      const rows = data || [];
+      setHistoryRows((current) => append ? [...current, ...rows] : rows);
+      setHistoryHasMore(offset + rows.length < (count ?? offset + rows.length));
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "No se pudo consultar el historial.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function openSavedPdf(row) {
+    if (!row.pdf_path) {
+      setHistoryError("Este presupuesto es anterior al historial de archivos y no tiene un PDF guardado.");
+      return;
+    }
+    const pdfWindow = window.open("", "_blank");
+    if (!pdfWindow) {
+      setHistoryError("El navegador bloqueó la ventana del PDF. Permití las ventanas emergentes para este sitio.");
+      return;
+    }
+    pdfWindow.opener = null;
+
+    setHistoryPdfLoading(row.id);
+    setHistoryError("");
+    try {
+      const { data, error } = await supabase.storage
+        .from(QUOTE_PDF_BUCKET)
+        .download(row.pdf_path);
+      if (error) throw error;
+      const pdfUrl = URL.createObjectURL(data);
+      pdfWindow.location.href = pdfUrl;
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+    } catch (error) {
+      pdfWindow.close();
+      setHistoryError(error instanceof Error ? error.message : "No se pudo abrir el PDF guardado.");
+    } finally {
+      setHistoryPdfLoading("");
+    }
+  }
+
   async function createQuotePdf() {
     if (!paperRef.current) {
       throw new Error("No se encontró la hoja del presupuesto para generar el PDF.");
@@ -297,9 +504,23 @@ export default function Home() {
     ]);
     const canvas = await html2canvas(paperRef.current, {
       backgroundColor: "#ffffff",
+      foreignObjectRendering: false,
       height: 1123,
       logging: false,
       onclone: (clonedDocument) => {
+        const preview = clonedDocument.querySelector(".preview-area");
+        if (preview) {
+          preview.style.display = "block";
+          preview.style.width = `${PDF_LAYOUT.pageWidth}px`;
+          preview.style.height = "auto";
+          preview.style.overflow = "visible";
+          preview.style.padding = "0";
+        }
+        const frame = clonedDocument.querySelector(".paper-frame");
+        if (frame) {
+          frame.style.width = `${PDF_LAYOUT.pageWidth}px`;
+          frame.style.height = `${PDF_LAYOUT.pageHeight}px`;
+        }
         const paper = clonedDocument.querySelector(".paper");
         if (paper) {
           paper.style.width = `${PDF_LAYOUT.pageWidth}px`;
@@ -315,6 +536,9 @@ export default function Home() {
       useCORS: true,
       width: PDF_LAYOUT.pageWidth,
     });
+    if (!Number.isFinite(canvas.width) || !Number.isFinite(canvas.height) || canvas.width <= 0 || canvas.height <= 0) {
+      throw new Error("No se pudo preparar la imagen del presupuesto para el PDF.");
+    }
     const pdf = new jsPDF({
       compress: true,
       format: "a4",
@@ -353,8 +577,9 @@ export default function Home() {
     setPdfMessage("");
     try {
       const { blob, fileName } = await createQuotePdf();
+      await saveQuotePdf(blob);
       downloadPdf(blob, fileName);
-      setPdfMessage("El presupuesto se descargó en PDF.");
+      setPdfMessage("El PDF se guardó en el historial y se descargó correctamente.");
     } catch (error) {
       setPdfError(error instanceof Error ? error.message : "No se pudo generar el PDF.");
     } finally {
@@ -426,6 +651,122 @@ export default function Home() {
     );
   }
 
+  if (staffAuthorization.userId !== session.user.id) {
+    return <main className="auth-page"><div className="auth-card">Verificando autorización del personal…</div></main>;
+  }
+
+  if (!staffAuthorization.authorized) {
+    return (
+      <main className="auth-page">
+        <section className="auth-card">
+          <CrbLogo className="auth-logo" />
+          <p className="eyebrow">CENTRO DE REPARACIONES BRAGADO</p>
+          <h1>Acceso no autorizado</h1>
+          <p className="auth-help">Esta cuenta todavía no está habilitada para el historial del taller. Pedile al administrador que ejecute la configuración de Supabase y agregue tu usuario a `staff_members`.</p>
+          {staffAuthorization.error && <p className="auth-error" role="alert">{staffAuthorization.error}</p>}
+          <button className="button button-primary" type="button" onClick={signOut}>Cerrar sesión</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (historyOpen) {
+    return (
+      <main className="history-page">
+        <header className="history-header">
+          <div>
+            <p className="eyebrow">CENTRO DE REPARACIONES BRAGADO</p>
+            <h1>Presupuestos guardados</h1>
+            <p>Historial compartido del taller · {session.user.email}</p>
+          </div>
+          <div className="history-header-actions">
+            <button className="button button-primary" type="button" onClick={() => setHistoryOpen(false)}>Nuevo presupuesto</button>
+            <button className="history-logout" type="button" onClick={signOut}>Cerrar sesión</button>
+          </div>
+        </header>
+
+        <form
+          className="history-filters"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void loadHistory();
+          }}
+        >
+          <label className="field">
+            <span>Buscar por cliente</span>
+            <input maxLength={200} type="search" value={historySearch} onChange={(event) => setHistorySearch(event.target.value)} placeholder="Nombre o parte del nombre" />
+          </label>
+          <label className="field">
+            <span>Desde</span>
+            <input type="date" value={historyFrom} onChange={(event) => setHistoryFrom(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Hasta</span>
+            <input type="date" value={historyTo} onChange={(event) => setHistoryTo(event.target.value)} />
+          </label>
+          <div className="history-filter-actions">
+            <button className="button button-primary" type="submit" disabled={historyLoading}>Buscar</button>
+            <button
+              className="history-reset"
+              type="button"
+              disabled={historyLoading}
+              onClick={() => {
+                setHistorySearch("");
+                setHistoryFrom("");
+                setHistoryTo("");
+                void loadHistory({ filters: { search: "", from: "", to: "" } });
+              }}
+            >
+              Limpiar
+            </button>
+          </div>
+        </form>
+
+        {historyError && <p className="history-error" role="alert">{historyError}</p>}
+        {historyLoading && historyRows.length === 0 && <p className="history-empty">Cargando presupuestos…</p>}
+        {!historyLoading && historyRows.length === 0 && !historyError && <p className="history-empty">No se encontraron presupuestos con esos filtros.</p>}
+
+        <section className="history-list" aria-label="Resultados del historial">
+          {historyRows.map((row) => (
+            <article className="history-card" key={row.id}>
+              <div className="history-card-header">
+                <div>
+                  <h2>{row.customer}</h2>
+                  <time dateTime={row.quote_date}>{formatDate(row.quote_date)}</time>
+                </div>
+                <button className="button button-primary" type="button" onClick={() => openSavedPdf(row)} disabled={!row.pdf_path || historyPdfLoading === row.id}>
+                  {historyPdfLoading === row.id ? "Abriendo…" : "Abrir PDF"}
+                </button>
+              </div>
+              <p className="history-summary">{[row.vehicle, row.plate, row.year].filter(Boolean).join(" · ") || "Sin datos del vehículo"}</p>
+              <details className="history-details">
+                <summary>Ver datos del presupuesto</summary>
+                <dl>
+                  <div><dt>Vehículo</dt><dd>{row.vehicle || "—"}</dd></div>
+                  <div><dt>Dominio</dt><dd>{row.plate || "—"}</dd></div>
+                  <div><dt>Año</dt><dd>{row.year || "—"}</dd></div>
+                  <div><dt>WhatsApp</dt><dd>{row.phone || "—"}</dd></div>
+                  <div><dt>Correo</dt><dd>{row.customer_email || "—"}</dd></div>
+                  <div><dt>Reparar</dt><dd>{row.repair || "—"}</dd></div>
+                  <div><dt>Reemplazar</dt><dd>{row.replace || "—"}</dd></div>
+                  <div><dt>Repuestos</dt><dd>{formatAmount(row.parts)}</dd></div>
+                  <div><dt>Mano de obra</dt><dd>{formatAmount(row.labor)}</dd></div>
+                </dl>
+              </details>
+              {!row.pdf_path && <p className="history-legacy-note">Registro previo: no hay un PDF archivado para este presupuesto.</p>}
+            </article>
+          ))}
+        </section>
+
+        {historyHasMore && (
+          <button className="button button-primary history-load-more" type="button" onClick={() => void loadHistory({ append: true })} disabled={historyLoading}>
+            {historyLoading ? "Cargando…" : "Cargar más presupuestos"}
+          </button>
+        )}
+      </main>
+    );
+  }
+
   return (
     <main className="workspace">
       <div className="mobile-view-toggle no-print">
@@ -443,7 +784,10 @@ export default function Home() {
 
         <div className="account-bar no-print">
           <span>{session.user.email}</span>
-          <button type="button" onClick={signOut}>Cerrar sesión</button>
+          <div className="account-actions">
+            <button type="button" onClick={() => { setHistoryOpen(true); void loadHistory(); }}>Historial</button>
+            <button type="button" onClick={signOut}>Cerrar sesión</button>
+          </div>
         </div>
 
         <div className="editor-actions">
@@ -466,15 +810,15 @@ export default function Home() {
         <section className="form-section">
           <h2>Datos del presupuesto</h2>
           <Field label="Fecha" type="date" value={quote.date} onChange={(event) => update("date", event.target.value)} />
-          <Field label="Señor" value={quote.customer} onChange={(event) => update("customer", event.target.value)} placeholder="Nombre del cliente" />
-          <Field label="Vehículo" value={quote.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Marca y modelo" />
+          <Field label="Señor" maxLength={200} value={quote.customer} onChange={(event) => update("customer", event.target.value)} placeholder="Nombre del cliente" />
+          <Field label="Vehículo" maxLength={120} value={quote.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Marca y modelo" />
           <div className="field-row">
-            <Field label="Dominio" value={quote.plate} onChange={(event) => update("plate", event.target.value)} placeholder="AB123CD" />
-            <Field label="Año" value={quote.year} onChange={(event) => update("year", event.target.value)} placeholder="2020" />
+            <Field label="Dominio" maxLength={20} value={quote.plate} onChange={(event) => update("plate", event.target.value)} placeholder="AB123CD" />
+            <Field label="Año" maxLength={10} value={quote.year} onChange={(event) => update("year", event.target.value)} placeholder="2020" />
           </div>
-          <Field label="WhatsApp del cliente" type="tel" value={quote.phone} onChange={(event) => { update("phone", event.target.value); setWhatsAppError(""); }} placeholder="5492342483605" />
+          <Field label="WhatsApp del cliente" type="tel" maxLength={32} value={quote.phone} onChange={(event) => { update("phone", event.target.value); setWhatsAppError(""); }} placeholder="5492342483605" />
           <small className="phone-hint">Ingresá país, área y número para abrir su chat sin mensaje automático.</small>
-          <Field label="Correo electrónico del cliente" type="email" autoComplete="email" value={quote.customerEmail} onChange={(event) => { update("customerEmail", event.target.value); setEmailError(""); }} placeholder="cliente@correo.com" />
+          <Field label="Correo electrónico del cliente" type="email" maxLength={254} autoComplete="email" value={quote.customerEmail} onChange={(event) => { update("customerEmail", event.target.value); setEmailError(""); }} placeholder="cliente@correo.com" />
         </section>
 
         <section className="form-section">
@@ -509,30 +853,40 @@ export default function Home() {
           <div className="document-content">
             <div className="place-date">BRAGADO {formatDate(quote.date)}</div>
 
-            <div className="vehicle-data">
-              <p><strong>SEÑOR:</strong><span>{quote.customer}</span></p>
-              <p><strong>VEHICULO:</strong><span>{quote.vehicle}</span></p>
-              <div className="vehicle-inline">
-                <p><strong>DOMINIO:</strong><span>{quote.plate}</span></p>
-                <p><strong>AÑO:</strong><span>{quote.year}</span></p>
+            {(cleanText(quote.customer) || cleanText(quote.vehicle) || cleanText(quote.plate) || cleanText(quote.year)) && (
+              <div className="vehicle-data">
+                {cleanText(quote.customer) && <p><strong>SEÑOR:</strong><span>{quote.customer}</span></p>}
+                {cleanText(quote.vehicle) && <p><strong>VEHICULO:</strong><span>{quote.vehicle}</span></p>}
+                {(cleanText(quote.plate) || cleanText(quote.year)) && (
+                  <div className="vehicle-inline">
+                    {cleanText(quote.plate) && <p><strong>DOMINIO:</strong><span>{quote.plate}</span></p>}
+                    {cleanText(quote.year) && <p><strong>AÑO:</strong><span>{quote.year}</span></p>}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
-            <div className="work-section">
-              <h2>REPARAR:</h2>
-              {repairLines.map((line, index) => <p className="work-line" key={`repair-${index}`}>* {line}</p>)}
-            </div>
+            {repairLines.length > 0 && (
+              <div className="work-section">
+                <h2>REPARAR:</h2>
+                {repairLines.map((line, index) => <p className="work-line" key={`repair-${index}`}>* {line}</p>)}
+              </div>
+            )}
 
-            <div className="work-section replace-section">
-              <h2>REEMPLAZAR:</h2>
-              {replaceLines.map((line, index) => <p className="work-line" key={`replace-${index}`}>* {line}</p>)}
-            </div>
+            {replaceLines.length > 0 && (
+              <div className="work-section replace-section">
+                <h2>REEMPLAZAR:</h2>
+                {replaceLines.map((line, index) => <p className="work-line" key={`replace-${index}`}>* {line}</p>)}
+              </div>
+            )}
 
-            <div className="amount-boxes">
-              <div className="amount-row"><strong>REPUESTOS</strong><span>{formatAmount(quote.parts)}</span></div>
-              <div className="amount-row"><strong>MANO DE OBRA CHAPA Y PINTURA</strong><span>{formatAmount(quote.labor)}</span></div>
-              <div className="amount-row amount-final"><strong>FINAL</strong><span>{formatAmount(finalAmount)}</span></div>
-            </div>
+            {(quote.parts !== "" || quote.labor !== "") && (
+              <div className="amount-boxes">
+                {quote.parts !== "" && <div className="amount-row"><strong>REPUESTOS</strong><span>{formatAmount(quote.parts)}</span></div>}
+                {quote.labor !== "" && <div className="amount-row"><strong>MANO DE OBRA CHAPA Y PINTURA</strong><span>{formatAmount(quote.labor)}</span></div>}
+                <div className="amount-row amount-final"><strong>FINAL</strong><span>{formatAmount(finalAmount)}</span></div>
+              </div>
+            )}
           </div>
 
           <footer className="stationery-footer">
