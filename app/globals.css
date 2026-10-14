@@ -265,6 +265,12 @@ textarea {
   margin: 0 auto;
 }
 
+.paper-stack {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
 .preview-toolbar {
   max-width: 794px;
   display: flex;
@@ -355,6 +361,15 @@ textarea {
   text-transform: uppercase;
 }
 
+.continuation-label {
+  min-height: 43px;
+  margin-bottom: 22px;
+  color: #4b535a;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
 .vehicle-data {
   display: grid;
   gap: 13px;
@@ -401,6 +416,10 @@ textarea {
   padding-left: 10px;
   font-size: 15px;
   line-height: 1.4;
+}
+
+.work-line-continuation {
+  padding-left: 24px;
 }
 
 .replace-section {
@@ -853,7 +872,8 @@ textarea {
   html,
   body {
     width: 210mm;
-    height: 297mm;
+    height: auto;
+    min-height: 297mm;
     min-width: 0;
     max-width: none;
     margin: 0;
@@ -869,7 +889,7 @@ textarea {
   .workspace {
     display: block;
     width: 210mm;
-    height: 297mm;
+    height: auto;
     min-height: 0;
     margin: 0;
     padding: 0;
@@ -880,7 +900,7 @@ textarea {
   .preview-area:not(.mobile-paper-active) {
     display: block !important;
     width: 210mm;
-    height: 297mm;
+    height: auto;
     min-height: 0;
     margin: 0;
     padding: 0;
@@ -890,7 +910,18 @@ textarea {
   .paper-frame {
     width: 210mm !important;
     height: 297mm !important;
-    margin: 0 auto;
+    margin: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .paper-frame:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .paper-stack {
+    display: block;
   }
 
   .paper {
@@ -915,13 +946,13 @@ textarea {
   }
 
   .work-section {
-    min-height: 0;
     margin-bottom: 14px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  .replace-section {
+  .paper-multipage .work-section,
+  .paper-multipage .replace-section {
     min-height: 0;
   }
 

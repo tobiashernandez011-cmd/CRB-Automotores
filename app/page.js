@@ -98,6 +98,45 @@ function splitLines(value) {
     .filter(Boolean);
 }
 
+function wrapWorkLine(value, maxLength = 72) {
+  const parts = [];
+  let remaining = value;
+
+  while (remaining.length > maxLength) {
+    let breakAt = remaining.lastIndexOf(" ", maxLength);
+    if (breakAt < 1) breakAt = maxLength;
+    parts.push(remaining.slice(0, breakAt).trimEnd());
+    remaining = remaining.slice(breakAt).trimStart();
+  }
+  parts.push(remaining);
+  return parts.map((text, index) => ({ text, continuation: index > 0 }));
+}
+
+function paginateWork(repairLines, replaceLines, includeAmounts) {
+  const pages = [{ repair: [], replace: [] }];
+  const capacities = includeAmounts ? [12, 18] : [17, 24];
+  let used = 0;
+  let pageIndex = 0;
+
+  for (const [section, lines] of [["repair", repairLines], ["replace", replaceLines]]) {
+    for (const line of lines.flatMap((item) => wrapWorkLine(item))) {
+      let sectionLines = pages[pageIndex][section];
+      const headingCost = sectionLines.length === 0 ? 1.5 : 0;
+      if (used + headingCost + 1 > (capacities[pageIndex] ?? capacities[1]) && used > 0) {
+        pages.push({ repair: [], replace: [] });
+        pageIndex += 1;
+        used = 0;
+        sectionLines = pages[pageIndex][section];
+      }
+      if (sectionLines.length === 0) used += 1.5;
+      sectionLines.push(line);
+      used += 1;
+    }
+  }
+
+  return pages;
+}
+
 function localDateInputValue() {
   const now = new Date();
   const year = now.getFullYear();
@@ -253,7 +292,7 @@ export default function Home() {
   const [historyMessage, setHistoryMessage] = useState("");
   const [historyDeletingId, setHistoryDeletingId] = useState("");
   const [historyPdfLoading, setHistoryPdfLoading] = useState("");
-  const paperRef = useRef(null);
+  const paperStackRef = useRef(null);
 
   useEffect(() => {
     // Set the local date after hydration to avoid a server/client date mismatch.
@@ -547,10 +586,14 @@ export default function Home() {
   }
 
   async function createQuotePdf() {
-    if (!paperRef.current) {
+    if (!paperStackRef.current) {
       throw new Error("No se encontró la hoja del presupuesto para generar el PDF.");
     }
-    const logoElement = paperRef.current.querySelector(".brand-logo");
+    const paperElements = [...paperStackRef.current.querySelectorAll(".paper")];
+    if (paperElements.length === 0) {
+      throw new Error("No se encontraron hojas del presupuesto para generar el PDF.");
+    }
+    const logoElement = paperElements[0].querySelector(".brand-logo");
     if (!logoElement) {
       throw new Error("No se encontró el logo de la hoja para incluirlo en el PDF.");
     }
@@ -561,59 +604,62 @@ export default function Home() {
       import("html2canvas"),
       import("jspdf"),
     ]);
-    const canvas = await html2canvas(paperRef.current, {
-      backgroundColor: "#ffffff",
-      foreignObjectRendering: false,
-      height: 1123,
-      logging: false,
-      onclone: (clonedDocument) => {
-        const preview = clonedDocument.querySelector(".preview-area");
-        if (preview) {
-          preview.style.display = "block";
-          preview.style.width = `${PDF_LAYOUT.pageWidth}px`;
-          preview.style.height = "auto";
-          preview.style.overflow = "visible";
-          preview.style.padding = "0";
-        }
-        const frame = clonedDocument.querySelector(".paper-frame");
-        if (frame) {
-          frame.style.width = `${PDF_LAYOUT.pageWidth}px`;
-          frame.style.height = `${PDF_LAYOUT.pageHeight}px`;
-        }
-        const paper = clonedDocument.querySelector(".paper");
-        if (paper) {
-          paper.style.width = `${PDF_LAYOUT.pageWidth}px`;
-          paper.style.height = `${PDF_LAYOUT.pageHeight}px`;
-          paper.style.minHeight = `${PDF_LAYOUT.pageHeight}px`;
-          paper.style.padding = "48px 48px 34px";
-          paper.style.transform = "none";
-        }
-        const clonedLogo = paper?.querySelector(".brand-logo");
-        if (clonedLogo) clonedLogo.style.visibility = "hidden";
-      },
-      scale: 3,
-      useCORS: true,
-      width: PDF_LAYOUT.pageWidth,
-    });
-    if (!Number.isFinite(canvas.width) || !Number.isFinite(canvas.height) || canvas.width <= 0 || canvas.height <= 0) {
-      throw new Error("No se pudo preparar la imagen del presupuesto para el PDF.");
-    }
-
     const pdf = new jsPDF({
       compress: true,
       format: "a4",
       orientation: "portrait",
       unit: "mm",
     });
-    pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    pdf.addImage(
-      logoPng,
-      "PNG",
-      (PDF_LAYOUT.logo.x / PDF_LAYOUT.pageWidth) * 210,
-      (PDF_LAYOUT.logo.y / PDF_LAYOUT.pageHeight) * 297,
-      (PDF_LAYOUT.logo.width / PDF_LAYOUT.pageWidth) * 210,
-      (PDF_LAYOUT.logo.height / PDF_LAYOUT.pageHeight) * 297,
-    );
+    for (const [index, paperElement] of paperElements.entries()) {
+      const canvas = await html2canvas(paperElement, {
+        backgroundColor: "#ffffff",
+        foreignObjectRendering: false,
+        height: PDF_LAYOUT.pageHeight,
+        logging: false,
+        onclone: (clonedDocument) => {
+          const preview = clonedDocument.querySelector(".preview-area");
+          if (preview) {
+            preview.style.display = "block";
+            preview.style.width = `${PDF_LAYOUT.pageWidth}px`;
+            preview.style.height = "auto";
+            preview.style.overflow = "visible";
+            preview.style.padding = "0";
+          }
+          const frame = clonedDocument.querySelector(`[data-paper-frame="${index}"]`);
+          if (frame) {
+            frame.style.width = `${PDF_LAYOUT.pageWidth}px`;
+            frame.style.height = `${PDF_LAYOUT.pageHeight}px`;
+            frame.style.margin = "0";
+          }
+          const paper = clonedDocument.querySelector(`[data-pdf-page="${index}"]`);
+          if (paper) {
+            paper.style.width = `${PDF_LAYOUT.pageWidth}px`;
+            paper.style.height = `${PDF_LAYOUT.pageHeight}px`;
+            paper.style.minHeight = `${PDF_LAYOUT.pageHeight}px`;
+            paper.style.padding = "48px 48px 34px";
+            paper.style.transform = "none";
+          }
+          const clonedLogo = paper?.querySelector(".brand-logo");
+          if (clonedLogo) clonedLogo.style.visibility = "hidden";
+        },
+        scale: 3,
+        useCORS: true,
+        width: PDF_LAYOUT.pageWidth,
+      });
+      if (!Number.isFinite(canvas.width) || !Number.isFinite(canvas.height) || canvas.width <= 0 || canvas.height <= 0) {
+        throw new Error(`No se pudo preparar la hoja ${index + 1} del presupuesto para el PDF.`);
+      }
+      if (index > 0) pdf.addPage("a4", "portrait");
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, 210, 297, undefined, "FAST");
+      pdf.addImage(
+        logoPng,
+        "PNG",
+        (PDF_LAYOUT.logo.x / PDF_LAYOUT.pageWidth) * 210,
+        (PDF_LAYOUT.logo.y / PDF_LAYOUT.pageHeight) * 297,
+        (PDF_LAYOUT.logo.width / PDF_LAYOUT.pageWidth) * 210,
+        (PDF_LAYOUT.logo.height / PDF_LAYOUT.pageHeight) * 297,
+      );
+    }
     return {
       blob: pdf.output("blob"),
       fileName: quoteFileName(quote),
@@ -766,6 +812,8 @@ export default function Home() {
   const repairLines = splitLines(quote.repair);
   const replaceLines = splitLines(quote.replace);
   const finalAmount = Number(quote.parts || 0) + Number(quote.labor || 0);
+  const hasAmounts = quote.parts !== "" || quote.labor !== "";
+  const documentPages = paginateWork(repairLines, replaceLines, hasAmounts);
 
   if (!authReady) {
     return <main className="auth-page"><div className="auth-card">Verificando acceso…</div></main>;
@@ -992,70 +1040,97 @@ export default function Home() {
           <Field label="Mano de obra chapa y pintura" type="number" min="0" step="0.01" value={quote.labor} onChange={(event) => update("labor", event.target.value)} placeholder="0,00" />
           <div className="total-preview">FINAL <strong>{formatAmount(finalAmount)}</strong></div>
         </section>
-        <p className="editor-note">En WhatsApp, adjuntá manualmente el PDF descargado.</p>
+        <p className="editor-note">PDF + WhatsApp intenta adjuntar el archivo desde el menú de compartir; si el dispositivo no lo admite, descargalo y adjuntalo manualmente.</p>
       </aside>
 
       <section className={`preview-area${mobileShowPaper ? " mobile-paper-active" : ""}`} aria-label="Vista previa del presupuesto">
         <div className="preview-toolbar no-print">
-          <span>VISTA PREVIA · A4</span>
+          <span>VISTA PREVIA · A4 · {documentPages.length} {documentPages.length === 1 ? "HOJA" : "HOJAS"}</span>
           <span>Presupuesto en edición</span>
         </div>
-        <div className="paper-frame" style={{ width: PDF_LAYOUT.pageWidth * previewScale, height: PDF_LAYOUT.pageHeight * previewScale }}>
-        <article className="paper" ref={paperRef} style={{ transform: `scale(${previewScale})` }}>
-          <header className="stationery-header">
-            <div className="header-stripe">
-              <span className="header-name">CENTRO DE REPARACIONES BRAGADO</span>
-              <CrbLogo className="brand-logo" />
-            </div>
-          </header>
-
-          <div className="document-content">
-            <div className="place-date">BRAGADO {formatDate(quote.date)}</div>
-
-            {(cleanText(quote.customer) || cleanText(quote.vehicle) || cleanText(quote.plate) || cleanText(quote.year)) && (
-              <div className="vehicle-data">
-                {cleanText(quote.customer) && <p><strong>SEÑOR:</strong><span>{quote.customer}</span></p>}
-                {cleanText(quote.vehicle) && <p><strong>VEHICULO:</strong><span>{quote.vehicle}</span></p>}
-                {(cleanText(quote.plate) || cleanText(quote.year)) && (
-                  <div className="vehicle-inline">
-                    {cleanText(quote.plate) && <p><strong>DOMINIO:</strong><span>{quote.plate}</span></p>}
-                    {cleanText(quote.year) && <p><strong>AÑO:</strong><span>{quote.year}</span></p>}
+        <div className="paper-stack" ref={paperStackRef}>
+          {documentPages.map((page, pageIndex) => (
+            <div
+              className="paper-frame"
+              data-paper-frame={pageIndex}
+              key={`paper-frame-${pageIndex}`}
+              style={{ width: PDF_LAYOUT.pageWidth * previewScale, height: PDF_LAYOUT.pageHeight * previewScale }}
+            >
+              <article
+                className={`paper${documentPages.length > 1 ? " paper-multipage" : ""}`}
+                data-pdf-page={pageIndex}
+                style={{ transform: `scale(${previewScale})` }}
+              >
+                <header className="stationery-header">
+                  <div className="header-stripe">
+                    <span className="header-name">CENTRO DE REPARACIONES BRAGADO</span>
+                    <CrbLogo className="brand-logo" />
                   </div>
-                )}
-              </div>
-            )}
+                </header>
 
-            {repairLines.length > 0 && (
-              <div className="work-section">
-                <h2>REPARAR:</h2>
-                {repairLines.map((line, index) => <p className="work-line" key={`repair-${index}`}>* {line}</p>)}
-              </div>
-            )}
+                <div className="document-content">
+                  {pageIndex === 0 ? (
+                    <>
+                      <div className="place-date">BRAGADO {formatDate(quote.date)}</div>
 
-            {replaceLines.length > 0 && (
-              <div className="work-section replace-section">
-                <h2>REEMPLAZAR:</h2>
-                {replaceLines.map((line, index) => <p className="work-line" key={`replace-${index}`}>* {line}</p>)}
-              </div>
-            )}
+                      {(cleanText(quote.customer) || cleanText(quote.vehicle) || cleanText(quote.plate) || cleanText(quote.year)) && (
+                        <div className="vehicle-data">
+                          {cleanText(quote.customer) && <p><strong>SEÑOR:</strong><span>{quote.customer}</span></p>}
+                          {cleanText(quote.vehicle) && <p><strong>VEHICULO:</strong><span>{quote.vehicle}</span></p>}
+                          {(cleanText(quote.plate) || cleanText(quote.year)) && (
+                            <div className="vehicle-inline">
+                              {cleanText(quote.plate) && <p><strong>DOMINIO:</strong><span>{quote.plate}</span></p>}
+                              {cleanText(quote.year) && <p><strong>AÑO:</strong><span>{quote.year}</span></p>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="continuation-label">CONTINUACIÓN · {cleanText(quote.customer)}</div>
+                  )}
 
-            {(quote.parts !== "" || quote.labor !== "") && (
-              <div className="amount-boxes">
-                {quote.parts !== "" && <div className="amount-row"><strong>REPUESTOS</strong><span>{formatAmount(quote.parts)}</span></div>}
-                {quote.labor !== "" && <div className="amount-row"><strong>MANO DE OBRA CHAPA Y PINTURA</strong><span>{formatAmount(quote.labor)}</span></div>}
-                <div className="amount-row amount-final"><strong>FINAL</strong><span>{formatAmount(finalAmount)}</span></div>
-              </div>
-            )}
-          </div>
+                  {page.repair.length > 0 && (
+                    <div className="work-section">
+                      <h2>REPARAR:</h2>
+                      {page.repair.map((line, index) => (
+                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}`} key={`repair-${pageIndex}-${index}`}>
+                          {line.continuation ? null : "* "}{line.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
 
-          <footer className="stationery-footer">
-            <div className="legal-copy">AL RETIRAR EL VEHÍCULO DEL TALLER SE ABONARA EL TOTAL DE ESTE PRESUPUESTO EN EFECTIVO Y / O VALORES A CONVENIR</div>
-            <div className="footer-yellow" />
-            <div className="footer-blue">
-              General Paz 1643 · Cel: 2342 483605 · E-mail: crbautomotores@hotmail.com · CP: B6640BXC · BRAGADO (BS. AS.)
+                  {page.replace.length > 0 && (
+                    <div className="work-section replace-section">
+                      <h2>REEMPLAZAR:</h2>
+                      {page.replace.map((line, index) => (
+                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}`} key={`replace-${pageIndex}-${index}`}>
+                          {line.continuation ? null : "* "}{line.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {hasAmounts && pageIndex === documentPages.length - 1 && (
+                    <div className="amount-boxes">
+                      {quote.parts !== "" && <div className="amount-row"><strong>REPUESTOS</strong><span>{formatAmount(quote.parts)}</span></div>}
+                      {quote.labor !== "" && <div className="amount-row"><strong>MANO DE OBRA CHAPA Y PINTURA</strong><span>{formatAmount(quote.labor)}</span></div>}
+                      <div className="amount-row amount-final"><strong>FINAL</strong><span>{formatAmount(finalAmount)}</span></div>
+                    </div>
+                  )}
+                </div>
+
+                <footer className="stationery-footer">
+                  <div className="legal-copy">AL RETIRAR EL VEHÍCULO DEL TALLER SE ABONARA EL TOTAL DE ESTE PRESUPUESTO EN EFECTIVO Y / O VALORES A CONVENIR</div>
+                  <div className="footer-yellow" />
+                  <div className="footer-blue">
+                    General Paz 1643 · Cel: 2342 483605 · E-mail: crbautomotores@hotmail.com · CP: B6640BXC · BRAGADO (BS. AS.)
+                  </div>
+                </footer>
+              </article>
             </div>
-          </footer>
-        </article>
+          ))}
         </div>
       </section>
     </main>

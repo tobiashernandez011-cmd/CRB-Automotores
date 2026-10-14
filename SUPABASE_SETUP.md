@@ -65,7 +65,7 @@ Aplicá las variables a los entornos que uses y volvé a desplegar el proyecto. 
 
 ## PDF, WhatsApp y correo
 
-- **Descargar PDF** genera y descarga una hoja A4 con el formato del presupuesto.
+- **Descargar PDF** genera y descarga el presupuesto en una o más hojas A4 según la cantidad de trabajos; cada hoja repite el membrete, el logo y el pie de página, y los importes aparecen al final.
 - **PDF + WhatsApp** y **PDF + correo** generan y guardan el presupuesto y, si el navegador lo admite, abren el menú nativo para compartir el PDF como archivo adjunto. El usuario elige WhatsApp o una aplicación de correo y confirma el envío.
 - El menú nativo no permite seleccionar automáticamente el chat de WhatsApp ni completar el destinatario del correo. Para WhatsApp se debe elegir el contacto; para correo se debe verificar/completar el destinatario.
 - Si el navegador no admite compartir archivos o no puede iniciar el menú, descarga el PDF y ofrece un acceso directo a WhatsApp o Gmail para adjuntarlo manualmente. Gmail conserva precargada la dirección ingresada.
