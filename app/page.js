@@ -291,6 +291,7 @@ export default function Home() {
   const [historyMessage, setHistoryMessage] = useState("");
   const [historyDeletingId, setHistoryDeletingId] = useState("");
   const [historyPdfLoading, setHistoryPdfLoading] = useState("");
+  const [editingQuote, setEditingQuote] = useState(null);
   const paperStackRef = useRef(null);
 
   useEffect(() => {
@@ -445,10 +446,47 @@ export default function Home() {
       replace: cleanText(quote.replace, true),
       parts: quote.parts === "" ? 0 : Number(quote.parts),
       labor: quote.labor === "" ? 0 : Number(quote.labor),
-      created_by: session.user.id,
       pdf_path: pdfPath,
     };
-    const { error: insertError } = await supabase.from("quotes").insert(quoteRecord);
+
+    if (editingQuote) {
+      const { data, error: updateError } = await supabase
+        .from("quotes")
+        .update(quoteRecord)
+        .eq("id", editingQuote.id)
+        .select("id")
+        .maybeSingle();
+      if (updateError || !data) {
+        const { error: cleanupError } = await supabase.storage
+          .from(QUOTE_PDF_BUCKET)
+          .remove([pdfPath]);
+        if (cleanupError) {
+          throw new Error(`No se pudo actualizar el presupuesto${updateError ? ` (${updateError.message})` : ""} ni limpiar el PDF nuevo (${cleanupError.message}).`);
+        }
+        throw new Error(updateError
+          ? `No se pudo actualizar el presupuesto: ${updateError.message}`
+          : "No se pudo actualizar el presupuesto. Verificá los permisos y volvé a intentar.");
+      }
+
+      let warning = "";
+      if (editingQuote.pdf_path) {
+        const { error: removeError } = await supabase.storage
+          .from(QUOTE_PDF_BUCKET)
+          .remove([editingQuote.pdf_path]);
+        if (removeError) {
+          warning = `El presupuesto se actualizó, pero no se pudo limpiar el PDF anterior: ${removeError.message}`;
+        }
+      }
+      setHistoryRows((current) => current.map((row) => (
+        row.id === editingQuote.id ? { ...row, ...quoteRecord } : row
+      )));
+      setEditingQuote(null);
+      return { warning };
+    }
+
+    const { error: insertError } = await supabase
+      .from("quotes")
+      .insert({ ...quoteRecord, created_by: session.user.id });
     if (insertError) {
       const { error: cleanupError } = await supabase.storage
         .from(QUOTE_PDF_BUCKET)
@@ -458,6 +496,40 @@ export default function Home() {
       }
       throw new Error(`No se pudo registrar el presupuesto: ${insertError.message}`);
     }
+    return { warning: "" };
+  }
+
+  function startEditingQuote(row) {
+    if (editingQuote && editingQuote.id !== row.id &&
+        !window.confirm("Hay cambios sin guardar en el presupuesto actual. ¿Descartarlos y editar este otro?")) {
+      return;
+    }
+    setEditingQuote(row);
+    setQuote({
+      customer: row.customer || "",
+      vehicle: row.vehicle || "",
+      plate: row.plate || "",
+      year: row.year || "",
+      phone: row.phone || "",
+      customerEmail: row.customer_email || "",
+      date: row.quote_date || "",
+      repair: row.repair || "",
+      replace: row.replace || "",
+      parts: row.parts == null || Number(row.parts) === 0 ? "" : String(row.parts),
+      labor: row.labor == null || Number(row.labor) === 0 ? "" : String(row.labor),
+    });
+    setPdfError("");
+    setPdfMessage("");
+    setHistoryError("");
+    setHistoryOpen(false);
+    setMobileShowPaper(false);
+  }
+
+  function cancelEditingQuote() {
+    setEditingQuote(null);
+    setQuote({ ...initialQuote, date: localDateInputValue() });
+    setPdfError("");
+    setPdfMessage("");
   }
 
   async function loadHistory({ append = false, filters } = {}) {
@@ -566,6 +638,10 @@ export default function Home() {
       }
 
       setHistoryRows((current) => current.filter((item) => item.id !== row.id));
+      if (editingQuote?.id === row.id) {
+        setEditingQuote(null);
+        setQuote({ ...initialQuote, date: localDateInputValue() });
+      }
       setHistoryMessage("Presupuesto eliminado correctamente.");
     } catch (error) {
       if (pdfBackup && pdfRemoved) {
@@ -682,9 +758,11 @@ export default function Home() {
     setPdfMessage("");
     try {
       const { blob, fileName } = await createQuotePdf();
-      await saveQuotePdf(blob);
+      const { warning } = await saveQuotePdf(blob);
       downloadPdf(blob, fileName);
-      setPdfMessage("El PDF se guardó en el historial y se descargó correctamente.");
+      setPdfMessage(warning || (editingQuote
+        ? "Los cambios se guardaron y el PDF actualizado se descargó correctamente."
+        : "El PDF se guardó en el historial y se descargó correctamente."));
     } catch (error) {
       setPdfError(error instanceof Error ? error.message : "No se pudo generar el PDF.");
     } finally {
@@ -797,7 +875,16 @@ export default function Home() {
             <p>Historial compartido del taller · {session.user.email}</p>
           </div>
           <div className="history-header-actions">
-            <button className="button button-primary" type="button" onClick={() => setHistoryOpen(false)}>Nuevo presupuesto</button>
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => {
+                setHistoryOpen(false);
+                if (!editingQuote) cancelEditingQuote();
+              }}
+            >
+              {editingQuote ? "Volver a editar" : "Nuevo presupuesto"}
+            </button>
             <button className="history-logout" type="button" onClick={signOut}>Cerrar sesión</button>
           </div>
         </header>
@@ -856,6 +943,9 @@ export default function Home() {
                   <button className="button button-primary" type="button" onClick={() => openSavedPdf(row)} disabled={!row.pdf_path || historyPdfLoading === row.id || historyDeletingId === row.id}>
                     {historyPdfLoading === row.id ? "Abriendo…" : "Abrir PDF"}
                   </button>
+                  <button className="button button-edit" type="button" onClick={() => startEditingQuote(row)} disabled={historyDeletingId === row.id || historyPdfLoading === row.id}>
+                    Editar
+                  </button>
                   <button className="button button-danger" type="button" onClick={() => deleteSavedQuote(row)} disabled={historyDeletingId === row.id || historyPdfLoading === row.id}>
                     {historyDeletingId === row.id ? "Eliminando…" : "Eliminar"}
                   </button>
@@ -901,7 +991,7 @@ export default function Home() {
           <CrbLogo className="mini-logo" />
           <div>
             <p className="eyebrow">CENTRO DE REPARACIONES BRAGADO</p>
-            <h1>Nuevo presupuesto</h1>
+            <h1>{editingQuote ? "Editar presupuesto" : "Nuevo presupuesto"}</h1>
           </div>
         </div>
 
@@ -915,7 +1005,7 @@ export default function Home() {
 
         <div className="editor-actions">
           <button className="button button-primary" type="button" onClick={downloadQuotePdf} disabled={pdfLoading}>
-            {pdfLoading ? "Preparando PDF…" : "Descargar PDF"}
+            {pdfLoading ? "Preparando PDF…" : editingQuote ? "Guardar cambios y descargar" : "Descargar PDF"}
           </button>
           <button className="button button-whatsapp" type="button" onClick={openWhatsApp}>
             Abrir WhatsApp
@@ -924,6 +1014,12 @@ export default function Home() {
             Abrir Gmail
           </button>
         </div>
+        {editingQuote && (
+          <div className="edit-mode-notice">
+            <span>Editando el presupuesto de <strong>{editingQuote.customer}</strong> · {formatDate(editingQuote.quote_date)}. Al guardar se actualizarán sus datos y su PDF en el historial.</span>
+            <button type="button" onClick={cancelEditingQuote} disabled={pdfLoading}>Cancelar edición</button>
+          </div>
+        )}
         <p className="editor-note action-note">WhatsApp abre el chat y Gmail abre un borrador dirigido al cliente. Descargá el PDF y adjuntalo manualmente antes de enviarlo.</p>
         {pdfError && <p className="pdf-feedback pdf-error no-print" role="alert">{pdfError}</p>}
         {pdfMessage && <p className="pdf-feedback no-print" role="status">{pdfMessage}</p>}

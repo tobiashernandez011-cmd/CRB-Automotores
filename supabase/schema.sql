@@ -126,8 +126,30 @@ create policy "Staff can create their own quotes"
     and created_by = (select auth.uid())
   );
 
+create policy "Authorized staff can update quotes"
+  on public.quotes
+  for update
+  to authenticated
+  using ((select public.is_authorized_staff()))
+  with check ((select public.is_authorized_staff()));
+
 revoke all on public.quotes from anon, public;
+revoke update on public.quotes from authenticated;
 grant select, insert on public.quotes to authenticated;
+grant update (
+  customer,
+  vehicle,
+  plate,
+  year,
+  phone,
+  quote_date,
+  repair,
+  replace,
+  parts,
+  labor,
+  customer_email,
+  pdf_path
+) on public.quotes to authenticated;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('quote-pdfs', 'quote-pdfs', false, 10485760, array['application/pdf'])
