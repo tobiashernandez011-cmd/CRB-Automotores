@@ -114,7 +114,7 @@ function wrapWorkLine(value, maxLength = 72) {
 
 function paginateWork(repairLines, replaceLines, includeAmounts) {
   const pages = [{ repair: [], replace: [] }];
-  const capacities = includeAmounts ? [12, 18] : [17, 24];
+  const capacities = includeAmounts ? [16, 18] : [21, 24];
   let used = 0;
   let pageIndex = 0;
 
