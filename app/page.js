@@ -1079,7 +1079,12 @@ export default function Home() {
               >
                 <header className="stationery-header">
                   <div className="header-stripe">
-                    <span className="header-name">CENTRO DE REPARACIONES BRAGADO</span>
+                    <span className="header-name" aria-label="CENTRO DE REPARACIONES BRAGADO">
+                      <span>CENTRO</span>
+                      <span>DE</span>
+                      <span>REPARACIONES</span>
+                      <span>BRAGADO</span>
+                    </span>
                     <CrbLogo className="brand-logo" />
                   </div>
                 </header>

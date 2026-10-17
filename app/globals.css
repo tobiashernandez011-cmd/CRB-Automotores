@@ -360,6 +360,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   color: #292d30;
   font-size: 18px;
   font-weight: 700;
