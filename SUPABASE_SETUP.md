@@ -20,7 +20,7 @@ En **Authentication → URL Configuration**, agregá `http://localhost:3000` com
 
 ## 4. Crear el historial protegido
 
-En Supabase, abrí **SQL Editor**, pegá el contenido de [`supabase/schema.sql`](./supabase/schema.sql) y ejecutalo. El script agrega los campos necesarios a `public.quotes` si ya existe, crea el bucket privado `quote-pdfs` y aplica políticas RLS. Si ya habías configurado el historial, volvé a ejecutar el script actualizado para habilitar la edición de presupuestos. El historial es compartido entre las cuentas autorizadas del taller; cada persona solo puede crear registros con su propio ID.
+En Supabase, abrí **SQL Editor**, pegá el contenido de [`supabase/schema.sql`](./supabase/schema.sql) y ejecutalo. El script agrega los campos necesarios a `public.quotes` si ya existe, crea el bucket privado `quote-pdfs` y aplica políticas RLS. Si ya habías configurado el historial, volvé a ejecutar el script actualizado para habilitar la edición y la nueva sección de mecánica. El historial es compartido entre las cuentas autorizadas del taller; cada persona solo puede crear registros con su propio ID.
 
 Después, autorizá explícitamente las cuentas del personal. Primero consultá sus IDs en **SQL Editor**:
 
@@ -38,7 +38,7 @@ on conflict (user_id) do nothing;
 
 Sin una fila en `staff_members`, una cuenta no puede consultar ni guardar presupuestos, aunque haya podido iniciar sesión.
 
-Los PDFs nuevos se guardan en el bucket antes de iniciar la descarga. Si no se pueden guardar el archivo y sus datos, la descarga se cancela y la aplicación muestra el error. Desde **Historial** se puede buscar por cliente y rango de fechas, consultar los datos, abrir, editar y eliminar presupuestos. Al editar y guardar, se actualizan los datos del mismo registro y se reemplaza el PDF archivado; el archivo anterior se conserva hasta confirmar la actualización. Todos los miembros autorizados del taller pueden editar y eliminar presupuestos. Los registros anteriores que no tengan `pdf_path` siguen mostrando sus datos y pueden editarse para generar su primer PDF actualizado.
+Los PDFs nuevos se guardan en el bucket antes de iniciar la descarga. Si no se pueden guardar el archivo y sus datos, la descarga se cancela y la aplicación muestra el error. El presupuesto permite detallar trabajos de **Reparar**, **Mecánica** y **Reemplazar**; la frase “VER MÁS AL DESARMAR” se resalta en negrita donde aparezca. Desde **Historial** se puede buscar por cliente y rango de fechas, consultar los datos, abrir, editar y eliminar presupuestos. Al editar y guardar, se actualizan los datos del mismo registro y se reemplaza el PDF archivado; el archivo anterior se conserva hasta confirmar la actualización. Todos los miembros autorizados del taller pueden editar y eliminar presupuestos. Los registros anteriores que no tengan `pdf_path` siguen mostrando sus datos y pueden editarse para generar su primer PDF actualizado.
 
 ## 5. Configurar Vercel
 

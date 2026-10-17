@@ -454,6 +454,10 @@ textarea {
   padding-left: 24px;
 }
 
+.work-line-highlight {
+  font-weight: 700;
+}
+
 .replace-section {
   min-height: 130px;
 }

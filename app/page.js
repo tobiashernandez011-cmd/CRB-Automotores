@@ -12,6 +12,7 @@ const initialQuote = {
   customerEmail: "",
   date: "",
   repair: "",
+  mechanics: "",
   replace: "",
   parts: "",
   labor: "",
@@ -43,7 +44,7 @@ function validateQuote(quote) {
   }
   if (quote.customer.length > 200 || quote.vehicle.length > 120 || quote.plate.length > 20 ||
       quote.year.length > 10 || quote.phone.length > 32 || quote.customerEmail.length > 254 ||
-      quote.repair.length > 10000 || quote.replace.length > 10000) {
+      quote.repair.length > 10000 || quote.mechanics.length > 10000 || quote.replace.length > 10000) {
     return "Uno o más campos superan el largo permitido.";
   }
   for (const amount of [quote.parts, quote.labor]) {
@@ -98,8 +99,13 @@ function splitLines(value) {
     .filter(Boolean);
 }
 
+function isDisassemblyNote(value) {
+  return /ver\s+m[aá]s\s+al\s+desarmar/i.test(value);
+}
+
 function wrapWorkLine(value, maxLength = 72) {
   const parts = [];
+  const highlight = isDisassemblyNote(value);
   let remaining = value;
 
   while (remaining.length > maxLength) {
@@ -109,21 +115,25 @@ function wrapWorkLine(value, maxLength = 72) {
     remaining = remaining.slice(breakAt).trimStart();
   }
   parts.push(remaining);
-  return parts.map((text, index) => ({ text, continuation: index > 0 }));
+  return parts.map((text, index) => ({ text, continuation: index > 0, highlight }));
 }
 
-function paginateWork(repairLines, replaceLines, includeAmounts) {
-  const pages = [{ repair: [], replace: [] }];
+function paginateWork(repairLines, mechanicsLines, replaceLines, includeAmounts) {
+  const pages = [{ repair: [], mechanics: [], replace: [] }];
   const capacities = includeAmounts ? [22, 18] : [27, 24];
   let used = 0;
   let pageIndex = 0;
 
-  for (const [section, lines] of [["repair", repairLines], ["replace", replaceLines]]) {
+  for (const [section, lines] of [
+    ["repair", repairLines],
+    ["mechanics", mechanicsLines],
+    ["replace", replaceLines],
+  ]) {
     for (const line of lines.flatMap((item) => wrapWorkLine(item))) {
       let sectionLines = pages[pageIndex][section];
       const headingCost = sectionLines.length === 0 ? 1.5 : 0;
       if (used + headingCost + 1 > (capacities[pageIndex] ?? capacities[1]) && used > 0) {
-        pages.push({ repair: [], replace: [] });
+        pages.push({ repair: [], mechanics: [], replace: [] });
         pageIndex += 1;
         used = 0;
         sectionLines = pages[pageIndex][section];
@@ -443,6 +453,7 @@ export default function Home() {
       customer_email: cleanText(quote.customerEmail),
       quote_date: quote.date,
       repair: cleanText(quote.repair, true),
+      mechanics: cleanText(quote.mechanics, true),
       replace: cleanText(quote.replace, true),
       parts: quote.parts === "" ? 0 : Number(quote.parts),
       labor: quote.labor === "" ? 0 : Number(quote.labor),
@@ -514,6 +525,7 @@ export default function Home() {
       customerEmail: row.customer_email || "",
       date: row.quote_date || "",
       repair: row.repair || "",
+      mechanics: row.mechanics || "",
       replace: row.replace || "",
       parts: row.parts == null || Number(row.parts) === 0 ? "" : String(row.parts),
       labor: row.labor == null || Number(row.labor) === 0 ? "" : String(row.labor),
@@ -548,7 +560,7 @@ export default function Home() {
       const offset = append ? historyRows.length : 0;
       let request = supabase
         .from("quotes")
-        .select("id, customer, vehicle, plate, year, phone, customer_email, quote_date, repair, replace, parts, labor, created_at, pdf_path", { count: "exact" })
+        .select("id, customer, vehicle, plate, year, phone, customer_email, quote_date, repair, mechanics, replace, parts, labor, created_at, pdf_path", { count: "exact" })
         .order("quote_date", { ascending: false })
         .order("created_at", { ascending: false })
         .range(offset, offset + HISTORY_PAGE_SIZE - 1);
@@ -809,15 +821,18 @@ export default function Home() {
   }
 
   const repairLines = splitLines(quote.repair);
+  const mechanicsLines = splitLines(quote.mechanics);
   const replaceLines = splitLines(quote.replace);
   const finalAmount = Number(quote.parts || 0) + Number(quote.labor || 0);
   const hasAmounts = quote.parts !== "" || quote.labor !== "";
   const workLoad = repairLines.flatMap((line) => wrapWorkLine(line)).length +
+    mechanicsLines.flatMap((line) => wrapWorkLine(line)).length +
     replaceLines.flatMap((line) => wrapWorkLine(line)).length +
     (repairLines.length > 0 ? 1.5 : 0) +
+    (mechanicsLines.length > 0 ? 1.5 : 0) +
     (replaceLines.length > 0 ? 1.5 : 0);
   const denseWork = workLoad > (hasAmounts ? 16 : 21);
-  const documentPages = paginateWork(repairLines, replaceLines, hasAmounts);
+  const documentPages = paginateWork(repairLines, mechanicsLines, replaceLines, hasAmounts);
 
   if (!authReady) {
     return <main className="auth-page"><div className="auth-card">Verificando acceso…</div></main>;
@@ -966,6 +981,7 @@ export default function Home() {
                   <div><dt>WhatsApp</dt><dd>{row.phone || "—"}</dd></div>
                   <div><dt>Correo</dt><dd>{row.customer_email || "—"}</dd></div>
                   <div><dt>Reparar</dt><dd>{row.repair || "—"}</dd></div>
+                  <div><dt>Mecánica</dt><dd>{row.mechanics || "—"}</dd></div>
                   <div><dt>Reemplazar</dt><dd>{row.replace || "—"}</dd></div>
                   <div><dt>Repuestos</dt><dd>{formatAmount(row.parts)}</dd></div>
                   <div><dt>Mano de obra</dt><dd>{formatAmount(row.labor)}</dd></div>
@@ -1048,6 +1064,7 @@ export default function Home() {
         <section className="form-section">
           <h2>Trabajos y repuestos</h2>
           <ListField label="Reparar" value={quote.repair} onChange={(value) => update("repair", value)} placeholder={"Reparación de paragolpes\nPintura de guardabarros"} />
+          <ListField label="Mecánica" value={quote.mechanics} onChange={(value) => update("mechanics", value)} placeholder={"Reparación de tren delantero\nRevisión de motor"} />
           <ListField label="Reemplazar" value={quote.replace} onChange={(value) => update("replace", value)} placeholder={"Paragolpes delantero\nÓptica derecha"} />
         </section>
 
@@ -1115,7 +1132,18 @@ export default function Home() {
                     <div className="work-section">
                       <h2>REPARAR:</h2>
                       {page.repair.map((line, index) => (
-                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}`} key={`repair-${pageIndex}-${index}`}>
+                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}${line.highlight ? " work-line-highlight" : ""}`} key={`repair-${pageIndex}-${index}`}>
+                          {line.continuation ? null : "* "}{line.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {page.mechanics.length > 0 && (
+                    <div className="work-section mechanics-section">
+                      <h2>MECÁNICA:</h2>
+                      {page.mechanics.map((line, index) => (
+                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}${line.highlight ? " work-line-highlight" : ""}`} key={`mechanics-${pageIndex}-${index}`}>
                           {line.continuation ? null : "* "}{line.text}
                         </p>
                       ))}
@@ -1126,7 +1154,7 @@ export default function Home() {
                     <div className="work-section replace-section">
                       <h2>REEMPLAZAR:</h2>
                       {page.replace.map((line, index) => (
-                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}`} key={`replace-${pageIndex}-${index}`}>
+                        <p className={`work-line${line.continuation ? " work-line-continuation" : ""}${line.highlight ? " work-line-highlight" : ""}`} key={`replace-${pageIndex}-${index}`}>
                           {line.continuation ? null : "* "}{line.text}
                         </p>
                       ))}

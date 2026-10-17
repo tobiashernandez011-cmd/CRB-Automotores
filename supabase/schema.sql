@@ -7,6 +7,7 @@ create table if not exists public.quotes (
   phone text not null default '',
   quote_date date not null,
   repair text not null default '',
+  mechanics text not null default '',
   replace text not null default '',
   parts numeric(14, 2) not null default 0 check (parts >= 0),
   labor numeric(14, 2) not null default 0 check (labor >= 0),
@@ -18,6 +19,7 @@ create table if not exists public.quotes (
 
 alter table public.quotes
   add column if not exists customer_email text not null default '',
+  add column if not exists mechanics text not null default '',
   add column if not exists pdf_path text;
 
 create index if not exists quotes_quote_date_idx
@@ -66,6 +68,15 @@ begin
         pdf_path is null
         or pdf_path ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$'
       ) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'quotes_mechanics_length_check'
+      and conrelid = 'public.quotes'::regclass
+  ) then
+    alter table public.quotes
+      add constraint quotes_mechanics_length_check
+      check (char_length(mechanics) <= 10000) not valid;
   end if;
 end
 $$;
@@ -144,6 +155,7 @@ grant update (
   phone,
   quote_date,
   repair,
+  mechanics,
   replace,
   parts,
   labor,
