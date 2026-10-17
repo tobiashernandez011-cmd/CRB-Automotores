@@ -114,7 +114,7 @@ function wrapWorkLine(value, maxLength = 72) {
 
 function paginateWork(repairLines, replaceLines, includeAmounts) {
   const pages = [{ repair: [], replace: [] }];
-  const capacities = includeAmounts ? [16, 18] : [21, 24];
+  const capacities = includeAmounts ? [22, 18] : [27, 24];
   let used = 0;
   let pageIndex = 0;
 
@@ -812,6 +812,11 @@ export default function Home() {
   const replaceLines = splitLines(quote.replace);
   const finalAmount = Number(quote.parts || 0) + Number(quote.labor || 0);
   const hasAmounts = quote.parts !== "" || quote.labor !== "";
+  const workLoad = repairLines.flatMap((line) => wrapWorkLine(line)).length +
+    replaceLines.flatMap((line) => wrapWorkLine(line)).length +
+    (repairLines.length > 0 ? 1.5 : 0) +
+    (replaceLines.length > 0 ? 1.5 : 0);
+  const denseWork = workLoad > (hasAmounts ? 16 : 21);
   const documentPages = paginateWork(repairLines, replaceLines, hasAmounts);
 
   if (!authReady) {
@@ -1068,7 +1073,7 @@ export default function Home() {
               style={{ width: PDF_LAYOUT.pageWidth * previewScale, height: PDF_LAYOUT.pageHeight * previewScale }}
             >
               <article
-                className={`paper${documentPages.length > 1 ? " paper-multipage" : ""}`}
+                className={`paper${denseWork ? " paper-dense" : ""}${documentPages.length > 1 ? " paper-multipage" : ""}`}
                 data-pdf-page={pageIndex}
                 style={{ transform: `scale(${previewScale})` }}
               >

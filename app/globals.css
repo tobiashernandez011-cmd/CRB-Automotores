@@ -457,6 +457,11 @@ textarea {
   min-height: 130px;
 }
 
+.paper-dense .work-section {
+  min-height: 0;
+  margin-bottom: 14px;
+}
+
 .amount-boxes {
   width: 76%;
   display: grid;
